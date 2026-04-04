@@ -24,6 +24,7 @@ export async function inspectSitemapIndex(sitemapUrl) {
     return {
       mainSitemap: sitemapUrl,
       type: "unknown",
+      urlCount: 0,
       childSitemaps: [],
       totalChildSitemaps: 0
     };
@@ -34,6 +35,7 @@ export async function inspectSitemapIndex(sitemapUrl) {
     return {
       mainSitemap: sitemapUrl,
       type: "unknown",
+      urlCount: 0,
       childSitemaps: [],
       totalChildSitemaps: 0
     };
@@ -45,6 +47,7 @@ export async function inspectSitemapIndex(sitemapUrl) {
     return {
       mainSitemap: sitemapUrl,
       type: parsed.type,
+      urlCount: parsed.urls.length,
       childSitemaps: [],
       totalChildSitemaps: 0
     };
@@ -100,8 +103,9 @@ async function expandSitemap(sitemapUrl, context) {
         break;
       }
 
-      if (isValidUrl(pageUrl)) {
-        context.urls.add(pageUrl);
+      const normalizedPageUrl = normalizePageUrl(pageUrl);
+      if (normalizedPageUrl) {
+        context.urls.add(normalizedPageUrl);
       }
     }
   }
@@ -133,14 +137,14 @@ function parseXmlDocument(xml) {
     if ($("sitemapindex").length > 0) {
       return {
         type: "index",
-        urls: collectLocValues($, "sitemap > loc")
+        urls: collectLocValues($, "sitemap > loc", { normalizePages: false })
       };
     }
 
     if ($("urlset").length > 0) {
       return {
         type: "urlset",
-        urls: collectLocValues($, "url > loc")
+        urls: collectLocValues($, "url > loc", { normalizePages: true })
       };
     }
   } catch {
@@ -154,6 +158,14 @@ function parseXmlDocument(xml) {
     type: "unknown",
     urls: []
   };
+}
+
+export function classifySitemapByUrlName(sitemapUrl) {
+  const normalizedUrl = sitemapUrl.toLowerCase();
+
+  if (normalizedUrl.includes("page")) return "page";
+  if (normalizedUrl.includes("post")) return "post";
+  return "other";
 }
 
 async function inspectSingleSitemap(sitemapUrl) {
@@ -183,10 +195,15 @@ async function inspectSingleSitemap(sitemapUrl) {
   };
 }
 
-function collectLocValues($, selector) {
+function collectLocValues($, selector, options = {}) {
+  const normalizePages = options.normalizePages ?? false;
+
   return [...new Set(
     $(selector)
-      .map((_, element) => $(element).text().trim())
+      .map((_, element) => {
+        const value = $(element).text().trim();
+        return normalizePages ? normalizePageUrl(value) : value;
+      })
       .get()
       .filter(Boolean)
   )];
@@ -199,4 +216,19 @@ function isValidUrl(value) {
   } catch {
     return false;
   }
+}
+
+function normalizePageUrl(value) {
+  if (!isValidUrl(value)) {
+    return null;
+  }
+
+  const parsedUrl = new URL(value);
+
+  if (parsedUrl.search) {
+    return null;
+  }
+
+  parsedUrl.hash = "";
+  return parsedUrl.href;
 }

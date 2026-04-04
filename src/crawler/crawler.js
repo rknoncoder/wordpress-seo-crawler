@@ -3,11 +3,10 @@ import extractData from "../parser/htmlParser.js";
 import saveJson from "../storage/saveJson.js";
 import config from "../config/config.js";
 
-const visited = new Set();
-const queue = [config.startUrl];
-const queued = new Set(queue);
-
-export default async function startCrawler() {
+export default async function startCrawler(initialUrls = [config.startUrl]) {
+  const visited = new Set();
+  const queue = [...new Set(initialUrls)];
+  const queued = new Set(queue);
   const results = [];
 
   while (queue.length && visited.size < config.maxPages) {

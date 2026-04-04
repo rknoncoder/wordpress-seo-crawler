@@ -1,185 +1,121 @@
 import config from "./config/config.js";
+import startCrawler from "./crawler/crawler.js";
 import detectSitemapUrls from "./crawler/sitemapDetector.js";
-import parseSitemap, { inspectSitemapIndex } from "./parser/sitemapParser.js";
-import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import parseSitemap, {
+  classifySitemapByUrlName,
+  inspectSitemapIndex
+} from "./parser/sitemapParser.js";
 
 async function main() {
   const detectionResult = await detectSitemapUrls(config.startUrl);
 
   if (detectionResult.sitemapUrls.length === 0) {
-    console.log(JSON.stringify(detectionResult, null, 2));
+    console.log("No sitemap found. Falling back to start URL crawling.");
+    await startCrawler([config.startUrl]);
     return;
   }
 
-  const initialCrawlQueue = [];
-  const sitemapInventory = [];
-  const recommendedChildSitemaps = [];
-  let selectedChildSitemaps = [];
+  const discoveredSitemaps = [];
+
+  console.log("\nDetected sitemaps:\n");
 
   for (const sitemapUrl of detectionResult.sitemapUrls) {
     const inventory = await inspectSitemapIndex(sitemapUrl);
-    sitemapInventory.push(inventory);
 
-    const prioritizedChildSitemaps = prioritizeChildSitemaps(inventory.childSitemaps);
-    appendUniqueSitemaps(recommendedChildSitemaps, prioritizedChildSitemaps);
+    if (inventory.type === "index") {
+      printChildSitemaps(inventory.childSitemaps);
+      appendUniqueSitemaps(discoveredSitemaps, inventory.childSitemaps);
+      continue;
+    }
+
+    console.log(`[1] ${sitemapUrl} | type=${inventory.type} | urls=${inventory.urlCount}`);
+    appendUniqueSitemaps(discoveredSitemaps, [
+      {
+        sitemapUrl,
+        type: inventory.type,
+        urlCount: inventory.urlCount
+      }
+    ]);
   }
 
-  selectedChildSitemaps = await chooseChildSitemaps(recommendedChildSitemaps, detectionResult.sitemapUrls);
+  const totalSitemapsFound = discoveredSitemaps.length;
+  const totalUrlsFound = discoveredSitemaps.reduce((sum, sitemap) => sum + sitemap.urlCount, 0);
+  const sitemapsForCrawl = selectSitemapsForCrawl(discoveredSitemaps, totalUrlsFound);
+  const finalCrawlUrls = await extractUrlsForCrawl(sitemapsForCrawl);
 
-  for (const selectedSitemap of selectedChildSitemaps) {
-    if (initialCrawlQueue.length >= config.maxPages) {
+  console.log("");
+  console.log(`Total sitemaps found: ${totalSitemapsFound}`);
+  console.log(`Total URLs found: ${totalUrlsFound}`);
+
+  if (totalUrlsFound <= 500) {
+    console.log("Applying smart filter: using all extracted sitemap URLs");
+  } else {
+    console.log("Applying smart filter: only post + page sitemaps");
+  }
+
+  console.log(`Final URLs selected: ${finalCrawlUrls.length}`);
+  console.log("URLs selected for crawl:");
+  finalCrawlUrls.forEach((url, index) => {
+    console.log(`${index + 1}. ${url}`);
+  });
+  console.log("");
+
+  await startCrawler(finalCrawlUrls.length > 0 ? finalCrawlUrls : [config.startUrl]);
+}
+
+function printChildSitemaps(childSitemaps) {
+  childSitemaps.forEach((childSitemap, index) => {
+    console.log(
+      `[${index + 1}] ${childSitemap.sitemapUrl} | type=${childSitemap.type} | urls=${childSitemap.urlCount}`
+    );
+  });
+}
+
+function appendUniqueSitemaps(target, sitemaps) {
+  sitemaps.forEach((sitemap) => {
+    if (!target.some((existing) => existing.sitemapUrl === sitemap.sitemapUrl)) {
+      target.push(sitemap);
+    }
+  });
+}
+
+function selectSitemapsForCrawl(sitemaps, totalUrlsFound) {
+  if (totalUrlsFound <= 500) {
+    return sitemaps;
+  }
+
+  const recommendedSitemaps = sitemaps.filter((sitemap) => {
+    const classification = classifySitemapByUrlName(sitemap.sitemapUrl);
+    return classification === "post" || classification === "page";
+  });
+
+  return recommendedSitemaps.length > 0 ? recommendedSitemaps : sitemaps;
+}
+
+async function extractUrlsForCrawl(sitemaps) {
+  const crawlUrls = [];
+
+  for (const sitemap of sitemaps) {
+    if (crawlUrls.length >= config.maxPages) {
       break;
     }
 
-    const parsedSitemap = await parseSitemap(selectedSitemap.sitemapUrl, {
-      limit: config.maxPages - initialCrawlQueue.length
+    const parsedSitemap = await parseSitemap(sitemap.sitemapUrl, {
+      limit: config.maxPages - crawlUrls.length
     });
 
-    for (const url of parsedSitemap.urls) {
-      if (initialCrawlQueue.length >= config.maxPages) {
-        break;
-      }
-
-      if (!initialCrawlQueue.includes(url)) {
-        initialCrawlQueue.push(url);
-      }
-    }
+    appendUniqueUrls(crawlUrls, parsedSitemap.urls, config.maxPages);
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        ...detectionResult,
-        sitemapInventory,
-        recommendedChildSitemaps,
-        selectedChildSitemaps,
-        initialCrawlQueue,
-        total: initialCrawlQueue.length
-      },
-      null,
-      2
-    )
-  );
+  return crawlUrls;
 }
 
-function prioritizeChildSitemaps(childSitemaps) {
-  return [...childSitemaps]
-    .map((childSitemap) => ({
-      ...childSitemap,
-      priority: getSitemapPriority(childSitemap.sitemapUrl)
-    }))
-    .sort((left, right) => {
-      if (left.priority !== right.priority) {
-        return left.priority - right.priority;
-      }
-
-      return right.urlCount - left.urlCount;
-    });
-}
-
-function getSitemapPriority(sitemapUrl) {
-  const normalizedUrl = sitemapUrl.toLowerCase();
-
-  if (normalizedUrl.includes("page-sitemap")) return 1;
-  if (normalizedUrl.includes("post-sitemap")) return 2;
-  if (normalizedUrl.includes("service") || normalizedUrl.includes("product")) return 3;
-  if (normalizedUrl.includes("case") || normalizedUrl.includes("portfolio")) return 4;
-  if (normalizedUrl.includes("category")) return 7;
-  if (normalizedUrl.includes("tag")) return 8;
-  if (normalizedUrl.includes("author")) return 9;
-  return 5;
-}
-
-function appendUniqueSitemaps(target, items) {
-  items.forEach((item) => {
-    if (!target.some((existing) => existing.sitemapUrl === item.sitemapUrl)) {
-      target.push(item);
+function appendUniqueUrls(target, urls, limit) {
+  urls.forEach((url) => {
+    if (target.length < limit && !target.includes(url)) {
+      target.push(url);
     }
   });
-}
-
-async function chooseChildSitemaps(recommendedChildSitemaps, fallbackSitemapUrls) {
-  if (recommendedChildSitemaps.length === 0) {
-    return fallbackSitemapUrls.map((sitemapUrl) => ({ sitemapUrl, type: "unknown", urlCount: 0 }));
-  }
-
-  const defaultSelection = getDefaultChildSitemaps(recommendedChildSitemaps);
-
-  if (!input.isTTY || !output.isTTY) {
-    return defaultSelection;
-  }
-
-  printSitemapChoices(recommendedChildSitemaps, defaultSelection);
-
-  const rl = readline.createInterface({ input, output });
-
-  try {
-    const answer = await rl.question(
-      "Choose sitemap numbers separated by commas, type 'all', or press Enter for recommended: "
-    );
-
-    const selected = parseSelection(answer, recommendedChildSitemaps);
-    return selected.length > 0 ? selected : defaultSelection;
-  } finally {
-    rl.close();
-  }
-}
-
-function getDefaultChildSitemaps(childSitemaps) {
-  const includePatterns = config.sitemapSelection?.includePatterns ?? [];
-  const excludePatterns = config.sitemapSelection?.excludePatterns ?? [];
-
-  const selected = childSitemaps.filter((childSitemap) => {
-    const normalizedUrl = childSitemap.sitemapUrl.toLowerCase();
-    const isExcluded = excludePatterns.some((pattern) => normalizedUrl.includes(pattern));
-
-    if (isExcluded) {
-      return false;
-    }
-
-    if (includePatterns.length === 0) {
-      return true;
-    }
-
-    return includePatterns.some((pattern) => normalizedUrl.includes(pattern));
-  });
-
-  return selected.length > 0 ? selected : childSitemaps;
-}
-
-function printSitemapChoices(childSitemaps, defaultSelection) {
-  console.log("\nAvailable child sitemaps:\n");
-
-  childSitemaps.forEach((childSitemap, index) => {
-    const isDefault = defaultSelection.some((item) => item.sitemapUrl === childSitemap.sitemapUrl);
-    const label = isDefault ? " [recommended]" : "";
-    console.log(
-      `${index + 1}. ${childSitemap.sitemapUrl} | type=${childSitemap.type} | urls=${childSitemap.urlCount}${label}`
-    );
-  });
-
-  console.log("");
-}
-
-function parseSelection(answer, childSitemaps) {
-  const normalizedAnswer = answer.trim().toLowerCase();
-
-  if (!normalizedAnswer) {
-    return [];
-  }
-
-  if (normalizedAnswer === "all") {
-    return childSitemaps;
-  }
-
-  const indexes = normalizedAnswer
-    .split(",")
-    .map((value) => Number.parseInt(value.trim(), 10))
-    .filter((value) => Number.isInteger(value) && value >= 1 && value <= childSitemaps.length);
-
-  const uniqueIndexes = [...new Set(indexes)];
-  return uniqueIndexes.map((index) => childSitemaps[index - 1]);
 }
 
 main();
