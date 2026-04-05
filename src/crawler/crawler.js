@@ -1,5 +1,6 @@
 import fetchPage from "./fetcher.js";
 import extractData from "../parser/htmlParser.js";
+import analyzeSeo from "../analyzer/seoAnalyzer.js";
 import saveJson from "../storage/saveJson.js";
 import config from "../config/config.js";
 
@@ -22,7 +23,11 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
     if (!page) continue;
 
     const { data, links } = await extractData(page.finalUrl, page.html);
-    results.push(data);
+    const seoAnalysis = analyzeSeo(data);
+    results.push({
+      ...data,
+      issues: seoAnalysis.issues
+    });
 
     links.forEach((link) => {
       if (

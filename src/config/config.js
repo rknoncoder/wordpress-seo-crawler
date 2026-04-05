@@ -1,5 +1,5 @@
 export default {
-  startUrl: "https://togrowmarketing.com",
+  startUrl: "https://www.nytco.com/",
   maxPages: 200,
   timeout: 10000,
   sitemapSelection: {
