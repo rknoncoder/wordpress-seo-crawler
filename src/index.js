@@ -1,6 +1,8 @@
 import config from "./config/config.js";
 import startCrawler from "./crawler/crawler.js";
 import detectSitemapUrls from "./crawler/sitemapDetector.js";
+import saveSitemapCsv from "./storage/saveSitemapCsv.js";
+import saveSitemapJson from "./storage/saveSitemapJson.js";
 import parseSitemap, {
   classifySitemapByUrlName,
   inspectSitemapIndex
@@ -41,6 +43,10 @@ async function main() {
   const totalSitemapsFound = discoveredSitemaps.length;
   const totalUrlsFound = discoveredSitemaps.reduce((sum, sitemap) => sum + sitemap.urlCount, 0);
   const sitemapsForCrawl = selectSitemapsForCrawl(discoveredSitemaps, totalUrlsFound);
+  const sitemapInventory = buildSitemapInventory(discoveredSitemaps, sitemapsForCrawl, detectionResult);
+  saveSitemapJson(sitemapInventory);
+  saveSitemapCsv(sitemapInventory.sitemaps);
+
   const finalCrawlUrls = await extractUrlsForCrawl(sitemapsForCrawl);
 
   console.log("");
@@ -66,7 +72,7 @@ async function main() {
 function printChildSitemaps(childSitemaps) {
   childSitemaps.forEach((childSitemap, index) => {
     console.log(
-      `[${index + 1}] ${childSitemap.sitemapUrl} | type=${childSitemap.type} | urls=${childSitemap.urlCount}`
+      `[${index + 1}] ${childSitemap.sitemapUrl} | xml=${childSitemap.type} | sitemapType=${childSitemap.sitemapType} | urls=${childSitemap.urlCount}`
     );
   });
 }
@@ -81,15 +87,47 @@ function appendUniqueSitemaps(target, sitemaps) {
 
 function selectSitemapsForCrawl(sitemaps, totalUrlsFound) {
   if (totalUrlsFound <= 500) {
-    return sitemaps;
+    const configuredSitemaps = filterSitemapsByConfig(sitemaps);
+    return configuredSitemaps.length > 0 ? configuredSitemaps : sitemaps;
   }
 
   const recommendedSitemaps = sitemaps.filter((sitemap) => {
-    const classification = classifySitemapByUrlName(sitemap.sitemapUrl);
-    return classification === "post" || classification === "page";
+    const classification = sitemap.sitemapType || classifySitemapByUrlName(sitemap.sitemapUrl);
+    return ["post", "page", "product", "service", "course", "location", "case-study"].includes(classification);
   });
 
   return recommendedSitemaps.length > 0 ? recommendedSitemaps : sitemaps;
+}
+
+function filterSitemapsByConfig(sitemaps) {
+  const includePatterns = config.sitemapSelection?.includePatterns ?? [];
+  const excludePatterns = config.sitemapSelection?.excludePatterns ?? [];
+
+  return sitemaps.filter((sitemap) => {
+    const sitemapUrl = sitemap.sitemapUrl.toLowerCase();
+    const isExcluded = excludePatterns.some((pattern) => sitemapUrl.includes(pattern.toLowerCase()));
+    const isIncluded =
+      includePatterns.length === 0 ||
+      includePatterns.some((pattern) => sitemapUrl.includes(pattern.toLowerCase()));
+
+    return isIncluded && !isExcluded;
+  });
+}
+
+function buildSitemapInventory(discoveredSitemaps, selectedSitemaps, detectionResult) {
+  const selectedUrls = new Set(selectedSitemaps.map((sitemap) => sitemap.sitemapUrl));
+
+  return {
+    source: detectionResult.source,
+    detectedSitemapUrls: detectionResult.sitemapUrls,
+    totalSitemapsFound: discoveredSitemaps.length,
+    totalUrlsFound: discoveredSitemaps.reduce((sum, sitemap) => sum + sitemap.urlCount, 0),
+    selectedSitemapsForCrawl: selectedSitemaps.length,
+    sitemaps: discoveredSitemaps.map((sitemap) => ({
+      ...sitemap,
+      selectedForCrawl: selectedUrls.has(sitemap.sitemapUrl)
+    }))
+  };
 }
 
 async function extractUrlsForCrawl(sitemaps) {

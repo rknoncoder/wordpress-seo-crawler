@@ -1,20 +1,56 @@
+import config from "../config/config.js";
+import { normalizeCrawlUrl } from "../utils/urlUtils.js";
+
 export default function ($, baseUrl) {
-  const links = new Set();
+  const internalLinks = new Map();
+  const externalLinks = new Map();
   const base = new URL(baseUrl);
 
   $("a").each((i, el) => {
     const href = $(el).attr("href");
     if (!href) return;
 
+    const anchorText = $(el).text().replace(/\s+/g, " ").trim();
+    const rel = ($(el).attr("rel") || "").toLowerCase();
+    const normalizedUrl = normalizeCrawlUrl(href, baseUrl, config.crawl);
+
+    if (normalizedUrl) {
+      internalLinks.set(normalizedUrl, {
+        url: normalizedUrl,
+        anchorText,
+        rel
+      });
+      return;
+    }
+
     try {
       const absoluteUrl = new URL(href, baseUrl);
-
-      if (absoluteUrl.origin === base.origin && !["mailto:", "tel:"].includes(absoluteUrl.protocol)) {
+      if (["http:", "https:"].includes(absoluteUrl.protocol) && absoluteUrl.origin !== base.origin) {
         absoluteUrl.hash = "";
-        links.add(absoluteUrl.href);
+        externalLinks.set(absoluteUrl.href, {
+          url: absoluteUrl.href,
+          anchorText,
+          rel
+        });
       }
-    } catch {}
+    } catch {
+      // Ignore malformed href values.
+    }
   });
 
-  return [...links];
+  const internalLinkList = [...internalLinks.values()];
+  const externalLinkList = [...externalLinks.values()];
+
+  return {
+    crawlLinks: internalLinkList.map((link) => link.url),
+    linkData: {
+      internalLinkCount: internalLinkList.length,
+      externalLinkCount: externalLinkList.length,
+      nofollowLinkCount: [...internalLinkList, ...externalLinkList].filter((link) =>
+        link.rel.split(/\s+/).includes("nofollow")
+      ).length,
+      internalLinkSamples: internalLinkList.slice(0, 10),
+      externalLinkSamples: externalLinkList.slice(0, 10)
+    }
+  };
 }
