@@ -1,7 +1,8 @@
 export default function ($) {
   const title = $("title").first().text().trim();
   const metaDescription = getMetaContent($, 'meta[name="description"]');
-  const canonical = $('link[rel="canonical"]').first().attr("href") || "";
+  const canonicalTags = $('link[rel="canonical"]');
+  const canonical = canonicalTags.first().attr("href") || "";
   const robots = getMetaContent($, 'meta[name="robots"]');
 
   return {
@@ -10,6 +11,7 @@ export default function ($) {
     metaDescription,
     metaDescriptionLength: metaDescription.length,
     canonical,
+    canonicalTagCount: canonicalTags.length,
     robots,
     isNoindex: robots.toLowerCase().includes("noindex"),
     openGraph: {

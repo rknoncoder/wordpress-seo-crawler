@@ -1,5 +1,6 @@
 import fetchPage from "./fetcher.js";
 import extractData from "../parser/htmlParser.js";
+import analyzeSeo from "../analyzer/seoAnalyzer.js";
 import saveJson from "../storage/saveJson.js";
 import saveCsv from "../storage/saveCsv.js";
 import classifySite from "../classifier/siteClassifier.js";
@@ -35,6 +36,7 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
     }
 
     const { data, links } = await extractData(page.finalUrl, page.html);
+    const seoAnalysis = analyzeSeo(data);
     results.push({
       requestedUrl: page.requestedUrl,
       finalUrl: page.finalUrl,
@@ -43,6 +45,7 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
       redirected: page.redirected,
       depth,
       fetchError: "",
+      issues: seoAnalysis.issues,
       ...data
     });
 
@@ -89,6 +92,7 @@ function buildFailedPageResult(page, depth) {
     redirected: page.redirected,
     depth,
     fetchError: page.error,
+    issues: [],
     title: "",
     metaDescription: "",
     metaDescriptionLength: 0,

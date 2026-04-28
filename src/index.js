@@ -1,6 +1,9 @@
 import config from "./config/config.js";
+import detectDuplicates from "./analyzer/duplicateDetector.js";
+import generateSummary from "./analyzer/summary.js";
 import startCrawler from "./crawler/crawler.js";
 import detectSitemapUrls from "./crawler/sitemapDetector.js";
+import exportExcel from "./storage/exportExcel.js";
 import saveSitemapCsv from "./storage/saveSitemapCsv.js";
 import saveSitemapJson from "./storage/saveSitemapJson.js";
 import parseSitemap, {
@@ -13,7 +16,7 @@ async function main() {
 
   if (detectionResult.sitemapUrls.length === 0) {
     console.log("No sitemap found. Falling back to start URL crawling.");
-    await startCrawler([config.startUrl]);
+    await runCrawlAndExport([config.startUrl]);
     return;
   }
 
@@ -66,7 +69,7 @@ async function main() {
   });
   console.log("");
 
-  await startCrawler(finalCrawlUrls.length > 0 ? finalCrawlUrls : [config.startUrl]);
+  await runCrawlAndExport(finalCrawlUrls.length > 0 ? finalCrawlUrls : [config.startUrl]);
 }
 
 function printChildSitemaps(childSitemaps) {
@@ -154,6 +157,18 @@ function appendUniqueUrls(target, urls, limit) {
       target.push(url);
     }
   });
+}
+
+async function runCrawlAndExport(urls) {
+  await startCrawler(urls);
+  const summary = await generateSummary();
+  console.log("SEO issue summary:");
+  console.log(JSON.stringify(summary, null, 2));
+  const duplicates = await detectDuplicates();
+  console.log("Duplicate SEO values:");
+  console.log(JSON.stringify(duplicates, null, 2));
+  const outputPath = await exportExcel();
+  console.log(`Excel export completed: ${outputPath}`);
 }
 
 main();
