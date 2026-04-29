@@ -1,5 +1,5 @@
 import config from "./config/config.js";
-import { getTargetUrl } from "./config/runtimeConfig.js";
+import { getSitemapUrls, getTargetUrl } from "./config/runtimeConfig.js";
 import detectDuplicates from "./analyzer/duplicateDetector.js";
 import generateSummary from "./analyzer/summary.js";
 import startCrawler from "./crawler/crawler.js";
@@ -14,10 +14,20 @@ import parseSitemap, {
 
 async function main() {
   const targetUrl = getTargetUrl(config.startUrl);
+  const manualSitemapUrls = getSitemapUrls();
 
   console.log(`Target website: ${targetUrl}`);
 
-  const detectionResult = await detectSitemapUrls(targetUrl);
+  const detectionResult = manualSitemapUrls.length > 0
+    ? {
+        sitemapUrls: manualSitemapUrls,
+        source: "manual",
+        status: "found",
+        detectedSeoPlugins: [],
+        attempts: [],
+        unavailableReason: ""
+      }
+    : await detectSitemapUrls(targetUrl);
 
   if (detectionResult.sitemapUrls.length === 0) {
     console.log(`No sitemap found (${detectionResult.status}). ${detectionResult.unavailableReason}`);

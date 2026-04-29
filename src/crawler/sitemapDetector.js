@@ -104,7 +104,8 @@ async function extractSitemapsFromRobots(baseUrl, userAgent, attempts, step = "r
     .filter((line) => /^sitemap:/i.test(line))
     .map((line) => line.replace(/^sitemap:\s*/i, "").trim())
     .filter(Boolean)
-    .filter(isValidUrl);
+    .map((value) => normalizeRobotsSitemapUrl(value, baseUrl))
+    .filter(Boolean);
 
   return {
     sitemapUrls: [...new Set(sitemapUrls)]
@@ -160,7 +161,9 @@ async function fetchText(url, userAgent) {
       responseType: "text",
       maxRedirects: 5,
       headers: {
-        "User-Agent": userAgent
+        "User-Agent": userAgent,
+        Accept: "text/plain,application/xml,text/xml,text/html,*/*",
+        "Accept-Language": "en-US,en;q=0.9"
       },
       validateStatus: () => true
     });
@@ -226,5 +229,13 @@ function isValidUrl(value) {
     return true;
   } catch {
     return false;
+  }
+}
+
+function normalizeRobotsSitemapUrl(value, baseUrl) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return "";
   }
 }

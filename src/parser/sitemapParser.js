@@ -19,6 +19,9 @@ const SITEMAP_TYPE_PATTERNS = [
   { type: "author", patterns: ["author-sitemap", "/author/"] }
 ];
 
+const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
 export default async function parseSitemap(sitemapUrl, options = {}) {
   const limit = options.limit ?? config.maxPages;
   const urls = new Set();
@@ -140,14 +143,25 @@ async function expandSitemap(sitemapUrl, context) {
 }
 
 async function fetchSitemapXml(sitemapUrl) {
+  const xml = await fetchSitemapXmlWithUserAgent(sitemapUrl, config.userAgent);
+
+  if (xml) {
+    return xml;
+  }
+
+  return fetchSitemapXmlWithUserAgent(sitemapUrl, BROWSER_USER_AGENT);
+}
+
+async function fetchSitemapXmlWithUserAgent(sitemapUrl, userAgent) {
   try {
     const response = await axios.get(sitemapUrl, {
       timeout: config.timeout,
       responseType: "arraybuffer",
       maxRedirects: 5,
       headers: {
-        "User-Agent": config.userAgent,
-        Accept: "application/xml,text/xml,text/plain,*/*"
+        "User-Agent": userAgent,
+        Accept: "application/xml,text/xml,text/plain,text/html,*/*",
+        "Accept-Language": "en-US,en;q=0.9"
       },
       validateStatus: () => true
     });

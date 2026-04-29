@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 const URL_FLAGS = new Set(["--url", "-u", "--site", "--start-url"]);
+const SITEMAP_FLAGS = new Set(["--sitemap", "--sitemap-url"]);
 
 export function getTargetUrl(defaultUrl) {
   loadDotEnv();
@@ -13,6 +14,15 @@ export function getTargetUrl(defaultUrl) {
   return normalizeUrl(targetUrl);
 }
 
+export function getSitemapUrls() {
+  loadDotEnv();
+
+  const cliSitemaps = getCliValues(process.argv.slice(2), SITEMAP_FLAGS, "--sitemap=");
+  const envSitemaps = splitList(process.env.SITEMAP_URLS || process.env.SITEMAP_URL || "");
+
+  return [...new Set([...cliSitemaps, ...envSitemaps].map(normalizeUrl))];
+}
+
 function getCliUrl(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -21,8 +31,17 @@ function getCliUrl(args) {
       return args[index + 1] || "";
     }
 
+    if (SITEMAP_FLAGS.has(arg)) {
+      index += 1;
+      continue;
+    }
+
     if (arg.startsWith("--url=")) {
       return arg.slice("--url=".length);
+    }
+
+    if (arg.startsWith("--sitemap=")) {
+      continue;
     }
 
     if (!arg.startsWith("-")) {
@@ -31,6 +50,33 @@ function getCliUrl(args) {
   }
 
   return "";
+}
+
+function getCliValues(args, flags, equalsPrefix) {
+  const values = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (flags.has(arg) && args[index + 1]) {
+      values.push(args[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith(equalsPrefix)) {
+      values.push(arg.slice(equalsPrefix.length));
+    }
+  }
+
+  return values.flatMap(splitList).filter(Boolean);
+}
+
+function splitList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function loadDotEnv() {
