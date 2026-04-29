@@ -2,85 +2,212 @@ import fs from "fs/promises";
 import path from "path";
 import * as XLSX from "xlsx";
 
-const INPUT_PATH = path.resolve("data/raw/output.json");
+const INPUT_PATHS = {
+  pages: path.resolve("data/raw/output.json"),
+  issues: path.resolve("data/reports/issues.json"),
+  siteProfile: path.resolve("data/raw/site-profile.json"),
+  sitemapProfile: path.resolve("data/raw/sitemaps.json")
+};
+
 const OUTPUT_PATH = path.resolve("data/output.xlsx");
-const HEADERS = [
-  "URL",
-  "Title",
-  "Meta Description",
-  "H1 count",
-  "Images without alt",
-  "Total issues count",
-  "Issue types"
-];
-const CHUNK_SIZE = 500;
+
+const SHEET_COLUMNS = {
+  overview: [
+    { header: "Metric", value: (row) => row.metric },
+    { header: "Value", value: (row) => row.value }
+  ],
+  pages: [
+    { header: "URL", value: (row) => row.url },
+    { header: "Status", value: (row) => row.status },
+    { header: "Page Type", value: (row) => row.classification?.pageType },
+    { header: "Modules", value: (row) => joinList(row.classification?.modules) },
+    { header: "Title", value: (row) => row.title },
+    { header: "Title Length", value: (row) => row.titleLength },
+    { header: "Meta Description", value: (row) => row.metaDescription },
+    { header: "Meta Description Length", value: (row) => row.metaDescriptionLength },
+    { header: "Canonical", value: (row) => row.canonical },
+    { header: "Robots", value: (row) => row.robots },
+    { header: "H1 Count", value: (row) => row.h1Count },
+    { header: "H1 Text", value: (row) => row.h1Text },
+    { header: "Word Count", value: (row) => row.wordCount },
+    { header: "Images", value: (row) => row.totalImages },
+    { header: "Images Missing Alt", value: (row) => row.imagesWithoutAlt },
+    { header: "Images Empty Alt", value: (row) => row.imagesWithEmptyAlt },
+    { header: "Internal Links", value: (row) => row.internalLinkCount },
+    { header: "External Links", value: (row) => row.externalLinkCount },
+    { header: "Schema Types", value: (row) => joinList(row.schema?.types) },
+    { header: "WordPress", value: (row) => boolText(row.wordpress?.isWordPress) },
+    { header: "Plugins", value: (row) => joinList(row.wordpress?.plugins) },
+    { header: "Fetch Error", value: (row) => row.fetchError }
+  ],
+  issues: [
+    { header: "Severity", value: (row) => row.severity },
+    { header: "Category", value: (row) => row.category },
+    { header: "Type", value: (row) => row.type },
+    { header: "URL", value: (row) => row.url },
+    { header: "Message", value: (row) => row.message },
+    { header: "Recommendation", value: (row) => row.recommendation },
+    { header: "Evidence", value: (row) => row.evidence }
+  ],
+  summary: [
+    { header: "Group", value: (row) => row.group },
+    { header: "Name", value: (row) => row.name },
+    { header: "Count", value: (row) => row.count }
+  ],
+  siteProfile: [
+    { header: "Field", value: (row) => row.field },
+    { header: "Value", value: (row) => row.value }
+  ],
+  sitemaps: [
+    { header: "Sitemap URL", value: (row) => row.sitemapUrl },
+    { header: "Type", value: (row) => row.type },
+    { header: "Sitemap Type", value: (row) => row.sitemapType },
+    { header: "URL Count", value: (row) => row.urlCount },
+    { header: "Selected For Crawl", value: (row) => boolText(row.selectedForCrawl) }
+  ]
+};
 
 export default async function exportExcel() {
-  const records = await readCrawlerOutput(INPUT_PATH);
+  const pages = await readJsonFile(INPUT_PATHS.pages, []);
+  const issues = await readJsonFile(INPUT_PATHS.issues, []);
+  const siteProfile = await readJsonFile(INPUT_PATHS.siteProfile, {});
+  const sitemapProfile = await readJsonFile(INPUT_PATHS.sitemapProfile, {});
+
   const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.aoa_to_sheet([HEADERS]);
 
-  for (let offset = 0; offset < records.length; offset += CHUNK_SIZE) {
-    const chunk = records.slice(offset, offset + CHUNK_SIZE);
-    const rows = chunk.map(toExcelRow);
+  appendSheet(workbook, "Overview", buildOverviewRows(pages, issues, siteProfile, sitemapProfile), SHEET_COLUMNS.overview);
+  appendSheet(workbook, "Pages", pages, SHEET_COLUMNS.pages);
+  appendSheet(workbook, "Issues", issues, SHEET_COLUMNS.issues);
+  appendSheet(workbook, "Issue Summary", buildIssueSummaryRows(issues), SHEET_COLUMNS.summary);
+  appendSheet(workbook, "Site Profile", buildSiteProfileRows(siteProfile), SHEET_COLUMNS.siteProfile);
+  appendSheet(workbook, "Sitemaps", sitemapProfile.sitemaps || [], SHEET_COLUMNS.sitemaps);
 
-    XLSX.utils.sheet_add_json(worksheet, rows, {
-      origin: -1,
-      skipHeader: true
-    });
-  }
-
-  worksheet["!cols"] = [
-    { wch: 60 },
-    { wch: 50 },
-    { wch: 60 },
-    { wch: 10 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 40 }
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, worksheet, "SEO Results");
   await fs.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
   XLSX.writeFile(workbook, OUTPUT_PATH);
 
   return OUTPUT_PATH;
 }
 
-async function readCrawlerOutput(filePath) {
-  let raw;
-
+async function readJsonFile(filePath, fallback) {
   try {
-    raw = await fs.readFile(filePath, "utf8");
+    const raw = await fs.readFile(filePath, "utf8");
+    return raw.trim() ? JSON.parse(raw) : fallback;
   } catch (error) {
     if (error.code === "ENOENT") {
-      return [];
+      return fallback;
     }
 
     throw error;
   }
-
-  if (!raw.trim()) {
-    return [];
-  }
-
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? parsed : [];
 }
 
-function toExcelRow(record = {}) {
-  const issues = Array.isArray(record.issues) ? record.issues : [];
+function appendSheet(workbook, sheetName, rows, columns) {
+  const sheetRows = rows.map((row) => toSheetRow(row, columns));
+  const worksheet = XLSX.utils.json_to_sheet(sheetRows, {
+    header: columns.map((column) => column.header),
+    skipHeader: false
+  });
 
-  return {
-    URL: record.url || "",
-    Title: record.title || "",
-    "Meta Description": record.metaDescription || "",
-    "H1 count": record.h1Count ?? 0,
-    "Images without alt": record.imagesWithoutAlt ?? 0,
-    "Total issues count": issues.length,
-    "Issue types": issues
-      .map((issue) => issue?.type)
-      .filter(Boolean)
-      .join(", ")
-  };
+  worksheet["!cols"] = columns.map((column) => ({
+    wch: Math.min(Math.max(column.header.length + 4, 14), 60)
+  }));
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+}
+
+function toSheetRow(row, columns) {
+  return columns.reduce((output, column) => {
+    output[column.header] = normalizeCellValue(column.value(row));
+    return output;
+  }, {});
+}
+
+function buildOverviewRows(pages, issues, siteProfile, sitemapProfile) {
+  const severityCounts = countBy(issues, (issue) => issue.severity || "unknown");
+
+  return [
+    { metric: "Total pages crawled", value: pages.length },
+    { metric: "Primary category", value: siteProfile.primaryCategory || "unknown" },
+    { metric: "Detected categories", value: joinList(siteProfile.detectedCategories) },
+    { metric: "Modules to run", value: joinList(siteProfile.modulesToRun) },
+    { metric: "Total issues", value: issues.length },
+    { metric: "High issues", value: severityCounts.high || 0 },
+    { metric: "Medium issues", value: severityCounts.medium || 0 },
+    { metric: "Low issues", value: severityCounts.low || 0 },
+    { metric: "WordPress detected", value: boolText(siteProfile.wordpress?.isWordPress) },
+    { metric: "SEO plugins", value: joinList(siteProfile.wordpress?.seoPlugins) },
+    { metric: "Ecommerce plugins", value: joinList(siteProfile.wordpress?.ecommercePlugins) },
+    { metric: "LMS plugins", value: joinList(siteProfile.wordpress?.lmsPlugins) },
+    { metric: "Builders", value: joinList(siteProfile.wordpress?.builders) },
+    { metric: "Total sitemaps found", value: sitemapProfile.totalSitemapsFound ?? 0 },
+    { metric: "Total sitemap URLs found", value: sitemapProfile.totalUrlsFound ?? 0 },
+    { metric: "Selected sitemaps for crawl", value: sitemapProfile.selectedSitemapsForCrawl ?? 0 }
+  ];
+}
+
+function buildIssueSummaryRows(issues) {
+  return [
+    ...toSummaryRows("Severity", countBy(issues, (issue) => issue.severity || "unknown")),
+    ...toSummaryRows("Category", countBy(issues, (issue) => issue.category || "unknown")),
+    ...toSummaryRows("Type", countBy(issues, (issue) => issue.type || "unknown"))
+  ];
+}
+
+function buildSiteProfileRows(siteProfile) {
+  return [
+    { field: "Total pages crawled", value: siteProfile.totalPagesCrawled ?? 0 },
+    { field: "Primary category", value: siteProfile.primaryCategory || "unknown" },
+    { field: "Detected categories", value: joinList(siteProfile.detectedCategories) },
+    { field: "Modules to run", value: joinList(siteProfile.modulesToRun) },
+    { field: "Page type counts", value: formatObject(siteProfile.pageTypeCounts) },
+    { field: "WordPress detected", value: boolText(siteProfile.wordpress?.isWordPress) },
+    { field: "Plugins", value: joinList(siteProfile.wordpress?.plugins) },
+    { field: "SEO plugins", value: joinList(siteProfile.wordpress?.seoPlugins) },
+    { field: "Ecommerce plugins", value: joinList(siteProfile.wordpress?.ecommercePlugins) },
+    { field: "LMS plugins", value: joinList(siteProfile.wordpress?.lmsPlugins) },
+    { field: "Builders", value: joinList(siteProfile.wordpress?.builders) },
+    { field: "Themes", value: joinList(siteProfile.wordpress?.themes) },
+    { field: "Schema types", value: joinList(siteProfile.schemaTypes) }
+  ];
+}
+
+function toSummaryRows(group, counts) {
+  return Object.entries(counts)
+    .sort(([, firstCount], [, secondCount]) => secondCount - firstCount)
+    .map(([name, count]) => ({ group, name, count }));
+}
+
+function countBy(items, getKey) {
+  return items.reduce((counts, item) => {
+    const key = getKey(item);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function normalizeCellValue(value) {
+  if (Array.isArray(value)) return joinList(value);
+  if (value && typeof value === "object") return formatObject(value);
+  if (value === undefined || value === null) return "";
+  return value;
+}
+
+function joinList(value) {
+  return Array.isArray(value) ? value.filter(Boolean).join(", ") : value || "";
+}
+
+function boolText(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "";
+}
+
+function formatObject(value) {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  return Object.entries(value)
+    .map(([key, item]) => `${key}: ${Array.isArray(item) ? joinList(item) : item}`)
+    .join("; ");
 }

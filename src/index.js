@@ -1,4 +1,5 @@
 import config from "./config/config.js";
+import { getTargetUrl } from "./config/runtimeConfig.js";
 import detectDuplicates from "./analyzer/duplicateDetector.js";
 import generateSummary from "./analyzer/summary.js";
 import startCrawler from "./crawler/crawler.js";
@@ -12,11 +13,15 @@ import parseSitemap, {
 } from "./parser/sitemapParser.js";
 
 async function main() {
-  const detectionResult = await detectSitemapUrls(config.startUrl);
+  const targetUrl = getTargetUrl(config.startUrl);
+
+  console.log(`Target website: ${targetUrl}`);
+
+  const detectionResult = await detectSitemapUrls(targetUrl);
 
   if (detectionResult.sitemapUrls.length === 0) {
     console.log("No sitemap found. Falling back to start URL crawling.");
-    await runCrawlAndExport([config.startUrl]);
+    await runCrawlAndExport([targetUrl]);
     return;
   }
 
@@ -69,7 +74,7 @@ async function main() {
   });
   console.log("");
 
-  await runCrawlAndExport(finalCrawlUrls.length > 0 ? finalCrawlUrls : [config.startUrl]);
+  await runCrawlAndExport(finalCrawlUrls.length > 0 ? finalCrawlUrls : [targetUrl]);
 }
 
 function printChildSitemaps(childSitemaps) {

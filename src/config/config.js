@@ -1,5 +1,5 @@
 export default {
-  startUrl: "https://www.nytco.com/",
+  startUrl: "https://www.togrowmarketing.com/",
   maxPages: 200,
   maxDepth: 3,
   timeout: 10000,
