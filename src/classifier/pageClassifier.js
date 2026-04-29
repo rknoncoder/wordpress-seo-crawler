@@ -29,8 +29,12 @@ export default function classifyPage(data) {
     return buildClassification("blog_index", ["articleSchema"], evidence);
   }
 
-  if (data.schema?.hasArticleSchema || data.openGraph?.type === "article") {
-    return buildClassification("article", ["articleSchema"], evidence);
+  if (isThemeDemoPage(pathname, data)) {
+    return buildClassification("theme_demo_page", ["basicSeo"], evidence);
+  }
+
+  if (isContactPage(pathname)) {
+    return buildClassification("contact_page", ["basicSeo", "localSeo"], evidence);
   }
 
   if (isServicePage(pathname, data)) {
@@ -45,12 +49,12 @@ export default function classifyPage(data) {
     return buildClassification("case_study", ["basicSeo"], evidence);
   }
 
-  if (isContactPage(pathname)) {
-    return buildClassification("contact_page", ["basicSeo", "localSeo"], evidence);
-  }
-
   if (isBusinessPage(pathname)) {
     return buildClassification("business_page", ["basicSeo", "organizationSchema"], evidence);
+  }
+
+  if (isArticlePage(pathname, data)) {
+    return buildClassification("article", ["articleSchema"], evidence);
   }
 
   return buildClassification("other", ["basicSeo"], evidence);
@@ -87,9 +91,41 @@ function isCaseStudy(pathname) {
 }
 
 function isContactPage(pathname) {
-  return pathname.includes("/contact/");
+  return ["/contact/", "/contact-us/", "/get-in-touch/"].some((route) => pathname.includes(route));
 }
 
 function isBusinessPage(pathname) {
   return pathname === "/" || pathname.includes("/about") || pathname.includes("/team");
+}
+
+function isArticlePage(pathname, data) {
+  return (
+    data.schema?.hasArticleSchema ||
+    pathname.includes("/blog/") ||
+    pathname.includes("/post/") ||
+    pathname.includes("/news/") ||
+    pathname.includes("/article/")
+  );
+}
+
+function isThemeDemoPage(pathname, data) {
+  const demoPathPatterns = [
+    "front-page",
+    "slider",
+    "wishlist",
+    "elements",
+    "shortcode",
+    "video-icon",
+    "widget-title",
+    "buttons-on-this-theme",
+    "gallery",
+    "testimonial"
+  ];
+  const h1Text = data.h1Text?.toLowerCase() || "";
+  const title = data.title?.toLowerCase() || "";
+  const textToCheck = `${pathname} ${h1Text} ${title}`;
+  const hasDemoPattern = demoPathPatterns.some((pattern) => textToCheck.includes(pattern));
+  const hasOnlyGenericSchema = !data.schema?.hasArticleSchema && !data.schema?.hasProductSchema && !data.schema?.hasCourseSchema;
+
+  return hasDemoPattern && hasOnlyGenericSchema;
 }

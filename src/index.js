@@ -20,7 +20,11 @@ async function main() {
   const detectionResult = await detectSitemapUrls(targetUrl);
 
   if (detectionResult.sitemapUrls.length === 0) {
-    console.log("No sitemap found. Falling back to start URL crawling.");
+    console.log(`No sitemap found (${detectionResult.status}). ${detectionResult.unavailableReason}`);
+    console.log("Falling back to start URL crawling.");
+    const sitemapInventory = buildSitemapInventory([], [], detectionResult);
+    saveSitemapJson(sitemapInventory);
+    saveSitemapCsv(sitemapInventory.sitemaps);
     await runCrawlAndExport([targetUrl]);
     return;
   }
@@ -127,7 +131,11 @@ function buildSitemapInventory(discoveredSitemaps, selectedSitemaps, detectionRe
 
   return {
     source: detectionResult.source,
+    status: detectionResult.status,
     detectedSitemapUrls: detectionResult.sitemapUrls,
+    detectedSeoPlugins: detectionResult.detectedSeoPlugins || [],
+    unavailableReason: detectionResult.unavailableReason || "",
+    attempts: detectionResult.attempts || [],
     totalSitemapsFound: discoveredSitemaps.length,
     totalUrlsFound: discoveredSitemaps.reduce((sum, sitemap) => sum + sitemap.urlCount, 0),
     selectedSitemapsForCrawl: selectedSitemaps.length,

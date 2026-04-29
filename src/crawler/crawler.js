@@ -5,6 +5,9 @@ import saveJson from "../storage/saveJson.js";
 import saveCsv from "../storage/saveCsv.js";
 import classifySite from "../classifier/siteClassifier.js";
 import runAudits from "../audits/runAudits.js";
+import buildActionPlan from "../reports/actionPlan.js";
+import saveActionPlanCsv from "../storage/saveActionPlanCsv.js";
+import saveActionPlanJson from "../storage/saveActionPlanJson.js";
 import saveIssuesCsv from "../storage/saveIssuesCsv.js";
 import saveIssuesJson from "../storage/saveIssuesJson.js";
 import saveSiteProfileCsv from "../storage/saveSiteProfileCsv.js";
@@ -67,18 +70,22 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
 
   const siteProfile = classifySite(results);
   const issues = runAudits(results, siteProfile);
+  const actionPlan = buildActionPlan(issues, results, siteProfile);
   saveJson(results);
   saveCsv(results);
   saveSiteProfileJson(siteProfile);
   saveSiteProfileCsv(siteProfile);
   saveIssuesJson(issues);
   saveIssuesCsv(issues);
+  saveActionPlanJson(actionPlan);
+  saveActionPlanCsv(actionPlan);
   console.log("Crawl completed");
 
   return {
     pages: results,
     siteProfile,
-    issues
+    issues,
+    actionPlan
   };
 }
 
@@ -121,6 +128,10 @@ function buildFailedPageResult(page, depth) {
       jsonLdCount: 0,
       jsonLdParseErrors: 0,
       microdataTypes: [],
+      sourceType: "none",
+      sourceName: "",
+      injectedByApp: false,
+      sourceEvidence: [],
       hasArticleSchema: false,
       hasProductSchema: false,
       hasLocalBusinessSchema: false,

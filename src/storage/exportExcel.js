@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 const INPUT_PATHS = {
   pages: path.resolve("data/raw/output.json"),
   issues: path.resolve("data/reports/issues.json"),
+  actionPlan: path.resolve("data/reports/action-plan.json"),
   siteProfile: path.resolve("data/raw/site-profile.json"),
   sitemapProfile: path.resolve("data/raw/sitemaps.json")
 };
@@ -36,6 +37,10 @@ const SHEET_COLUMNS = {
     { header: "Internal Links", value: (row) => row.internalLinkCount },
     { header: "External Links", value: (row) => row.externalLinkCount },
     { header: "Schema Types", value: (row) => joinList(row.schema?.types) },
+    { header: "Schema Injected By App", value: (row) => boolText(row.schema?.injectedByApp) },
+    { header: "Schema Source Type", value: (row) => row.schema?.sourceType },
+    { header: "Schema Source Name", value: (row) => row.schema?.sourceName },
+    { header: "Schema Source Evidence", value: (row) => joinList(row.schema?.sourceEvidence) },
     { header: "WordPress", value: (row) => boolText(row.wordpress?.isWordPress) },
     { header: "Plugins", value: (row) => joinList(row.wordpress?.plugins) },
     { header: "Fetch Error", value: (row) => row.fetchError }
@@ -48,6 +53,20 @@ const SHEET_COLUMNS = {
     { header: "Message", value: (row) => row.message },
     { header: "Recommendation", value: (row) => row.recommendation },
     { header: "Evidence", value: (row) => row.evidence }
+  ],
+  actionPlan: [
+    { header: "Priority", value: (row) => row.priority },
+    { header: "Category", value: (row) => row.category },
+    { header: "URL", value: (row) => row.url },
+    { header: "Page Type", value: (row) => row.pageType },
+    { header: "Issue Count", value: (row) => row.issueCount },
+    { header: "High Issues", value: (row) => row.highIssues },
+    { header: "Medium Issues", value: (row) => row.mediumIssues },
+    { header: "Low Issues", value: (row) => row.lowIssues },
+    { header: "Top Issue Type", value: (row) => row.topIssueType },
+    { header: "Action", value: (row) => row.action },
+    { header: "Reason", value: (row) => row.reason },
+    { header: "Related Issue Types", value: (row) => row.relatedIssueTypes }
   ],
   summary: [
     { header: "Group", value: (row) => row.group },
@@ -70,6 +89,7 @@ const SHEET_COLUMNS = {
 export default async function exportExcel() {
   const pages = await readJsonFile(INPUT_PATHS.pages, []);
   const issues = await readJsonFile(INPUT_PATHS.issues, []);
+  const actionPlan = await readJsonFile(INPUT_PATHS.actionPlan, []);
   const siteProfile = await readJsonFile(INPUT_PATHS.siteProfile, {});
   const sitemapProfile = await readJsonFile(INPUT_PATHS.sitemapProfile, {});
 
@@ -78,6 +98,7 @@ export default async function exportExcel() {
   appendSheet(workbook, "Overview", buildOverviewRows(pages, issues, siteProfile, sitemapProfile), SHEET_COLUMNS.overview);
   appendSheet(workbook, "Pages", pages, SHEET_COLUMNS.pages);
   appendSheet(workbook, "Issues", issues, SHEET_COLUMNS.issues);
+  appendSheet(workbook, "Action Plan", actionPlan, SHEET_COLUMNS.actionPlan);
   appendSheet(workbook, "Issue Summary", buildIssueSummaryRows(issues), SHEET_COLUMNS.summary);
   appendSheet(workbook, "Site Profile", buildSiteProfileRows(siteProfile), SHEET_COLUMNS.siteProfile);
   appendSheet(workbook, "Sitemaps", sitemapProfile.sitemaps || [], SHEET_COLUMNS.sitemaps);
