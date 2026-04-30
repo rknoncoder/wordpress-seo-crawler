@@ -97,7 +97,8 @@ export default async function ($, url) {
   const ecommercePlugins = detectNamedPatterns(`${assetText} ${structuralText}`, ECOMMERCE_PLUGIN_PATTERNS);
   const lmsPlugins = detectNamedPatterns(normalizedHtml, LMS_PLUGIN_PATTERNS);
   const builders = detectNamedPatterns(normalizedHtml, BUILDER_PATTERNS);
-  const routeSignals = detectRouteSignals(pathname);
+  const ecommerceSignals = detectEcommerceSignals($, normalizedHtml, ecommercePlugins);
+  const routeSignals = detectRouteSignals(pathname, ecommerceSignals.hasStrongWooCommerceSignal);
   const localSignals = detectLocalSignals($, normalizedHtml);
 
   if (plugins.length > 0) {
@@ -122,7 +123,8 @@ export default async function ($, url) {
     builders,
     routeSignals,
     localSignals,
-    hasWooCommerce: ecommercePlugins.includes("WooCommerce"),
+    ecommerceSignals: ecommerceSignals.signals,
+    hasWooCommerce: ecommercePlugins.includes("WooCommerce") || ecommerceSignals.hasStrongWooCommerceSignal,
     hasLms: lmsPlugins.length > 0 || routeSignals.includes("course-route"),
     hasLocalSignals: localSignals.length > 0
   };
@@ -207,11 +209,11 @@ function detectNamedPatterns(text, definitions) {
     .map((definition) => definition.name);
 }
 
-function detectRouteSignals(pathname) {
+function detectRouteSignals(pathname, hasStrongWooCommerceSignal) {
   const signals = [];
 
   if (["/shop/", "/product/", "/cart/", "/checkout/", "/my-account/"].some((route) => pathname.includes(route))) {
-    signals.push("woocommerce-route");
+    signals.push(hasStrongWooCommerceSignal ? "woocommerce-route" : "possible_shop_route");
   }
 
   if (["/course/", "/courses/", "/lesson/", "/lessons/"].some((route) => pathname.includes(route))) {
@@ -231,6 +233,31 @@ function detectRouteSignals(pathname) {
   }
 
   return signals;
+}
+
+function detectEcommerceSignals($, normalizedHtml, ecommercePlugins) {
+  const signals = [];
+
+  if (ecommercePlugins.includes("WooCommerce")) {
+    signals.push("woocommerce-plugin");
+  }
+
+  if (normalizedHtml.includes("add-to-cart") || normalizedHtml.includes("single_add_to_cart_button")) {
+    signals.push("add-to-cart");
+  }
+
+  if ($('a[href*="/cart"], a[href*="/checkout"], form[action*="/cart"], form[action*="/checkout"]').length > 0) {
+    signals.push("cart-checkout-link");
+  }
+
+  if (normalizedHtml.includes("woocommerce-cart") || normalizedHtml.includes("woocommerce-checkout")) {
+    signals.push("cart-checkout-markup");
+  }
+
+  return {
+    signals: [...new Set(signals)],
+    hasStrongWooCommerceSignal: signals.length > 0
+  };
 }
 
 function detectLocalSignals($, normalizedHtml) {

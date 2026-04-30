@@ -7,10 +7,12 @@ export default function classifySite(pages) {
   const builders = collectUnique(pages, (page) => page.wordpress?.builders);
   const themeSlugs = collectUnique(pages, (page) => page.wordpress?.themes);
   const schemaTypes = collectUnique(pages, (page) => page.schema?.types);
+  const globalSchemaTypes = collectUnique(pages, (page) => page.schema?.globalTypes);
+  const pageLevelSchemaTypes = collectUnique(pages, (page) => page.schema?.pageLevelTypes);
   const detectedCategories = detectSiteCategories(pages, pageTypeCounts, {
     ecommercePlugins,
     lmsPlugins,
-    schemaTypes
+    pageLevelSchemaTypes
   });
   const modulesToRun = detectModules(detectedCategories);
 
@@ -30,10 +32,14 @@ export default function classifySite(pages) {
       themes: themeSlugs
     },
     schemaTypes,
+    globalSchemaTypes,
+    pageLevelSchemaTypes,
     evidence: buildEvidence(pages, pageTypeCounts, {
       ecommercePlugins,
       lmsPlugins,
-      schemaTypes
+      schemaTypes,
+      globalSchemaTypes,
+      pageLevelSchemaTypes
     })
   };
 }
@@ -41,7 +47,7 @@ export default function classifySite(pages) {
 function detectSiteCategories(pages, pageTypeCounts, context) {
   const categories = [];
 
-  if (pageTypeCounts.product > 0 || context.ecommercePlugins.length > 0) {
+  if (pageTypeCounts.product > 0 || pageTypeCounts.product_collection_page > 0 || context.ecommercePlugins.length > 0) {
     categories.push("ecommerce");
   }
 
@@ -60,8 +66,7 @@ function detectSiteCategories(pages, pageTypeCounts, context) {
   if (
     pageTypeCounts.business_page > 0 ||
     pageTypeCounts.contact_page > 0 ||
-    context.schemaTypes.includes("Organization") ||
-    context.schemaTypes.includes("LocalBusiness")
+    context.pageLevelSchemaTypes.includes("LocalBusiness")
   ) {
     categories.push("business");
   }
@@ -74,7 +79,7 @@ function detectPrimaryCategory(pageTypeCounts, detectedCategories) {
     { category: "blog_news", count: (pageTypeCounts.article || 0) + (pageTypeCounts.blog_index || 0) },
     { category: "local_service", count: (pageTypeCounts.service_page || 0) + (pageTypeCounts.local_page || 0) },
     { category: "course", count: pageTypeCounts.course || 0 },
-    { category: "ecommerce", count: pageTypeCounts.product || 0 },
+    { category: "ecommerce", count: (pageTypeCounts.product || 0) + (pageTypeCounts.product_collection_page || 0) },
     { category: "business", count: (pageTypeCounts.business_page || 0) + (pageTypeCounts.contact_page || 0) }
   ].filter((candidate) => detectedCategories.includes(candidate.category));
 
@@ -102,13 +107,18 @@ function buildEvidence(pages, pageTypeCounts, context) {
       lms: context.lmsPlugins
     },
     schemaTypes: context.schemaTypes,
+    globalSchemaTypes: context.globalSchemaTypes,
+    pageLevelSchemaTypes: context.pageLevelSchemaTypes,
     sampleUrls: {
       articles: collectSampleUrls(pages, "article"),
       products: collectSampleUrls(pages, "product"),
+      productCollections: collectSampleUrls(pages, "product_collection_page"),
       courses: collectSampleUrls(pages, "course"),
       services: collectSampleUrls(pages, "service_page"),
       localPages: collectSampleUrls(pages, "local_page"),
-      businessPages: collectSampleUrls(pages, "business_page")
+      businessPages: collectSampleUrls(pages, "business_page"),
+      themeDemoPages: collectSampleUrls(pages, "theme_demo_page"),
+      builderPages: collectSampleUrls(pages, "builder_page")
     }
   };
 }

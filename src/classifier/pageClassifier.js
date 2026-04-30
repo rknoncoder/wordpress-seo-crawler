@@ -8,6 +8,7 @@ export default function classifyPage(data) {
   if (data.schema?.hasArticleSchema) evidence.push("article-schema");
   if (data.openGraph?.type) evidence.push(`og:${data.openGraph.type}`);
   if (data.wordpress?.routeSignals?.length) evidence.push(...data.wordpress.routeSignals);
+  if (data.wordpress?.ecommerceSignals?.length) evidence.push(...data.wordpress.ecommerceSignals);
   if (data.wordpress?.localSignals?.length) evidence.push(...data.wordpress.localSignals);
 
   if (
@@ -21,12 +22,20 @@ export default function classifyPage(data) {
     return buildClassification("shop_or_account_page", ["basicSeo"], evidence);
   }
 
+  if (isProductCollectionPage(pathname, data)) {
+    return buildClassification("product_collection_page", ["basicSeo", "ecommerceSeo"], evidence);
+  }
+
   if (data.schema?.hasCourseSchema || data.wordpress?.routeSignals?.includes("course-route")) {
     return buildClassification("course", ["courseSchema"], evidence);
   }
 
   if (isBlogIndex(pathname, data)) {
     return buildClassification("blog_index", ["articleSchema"], evidence);
+  }
+
+  if (isBuilderPage(pathname, data)) {
+    return buildClassification("builder_page", ["basicSeo"], evidence);
   }
 
   if (isThemeDemoPage(pathname, data)) {
@@ -69,7 +78,7 @@ function buildClassification(pageType, modules, evidence) {
 }
 
 function isBlogIndex(pathname, data) {
-  return pathname === "/blog/" || (data.h1Text?.toLowerCase() === "blog" && data.schema?.types?.includes("CollectionPage"));
+  return pathname === "/blog/" || (data.h1Text?.toLowerCase() === "blog" && data.schema?.pageLevelTypes?.includes("CollectionPage"));
 }
 
 function isServicePage(pathname, data) {
@@ -100,11 +109,66 @@ function isBusinessPage(pathname) {
 
 function isArticlePage(pathname, data) {
   return (
-    data.schema?.hasArticleSchema ||
-    pathname.includes("/blog/") ||
-    pathname.includes("/post/") ||
-    pathname.includes("/news/") ||
-    pathname.includes("/article/")
+    data.schema?.hasArticleSchema &&
+    data.schema?.hasArticleAuthor &&
+    data.schema?.hasArticlePublishedDate
+  );
+}
+
+function isProductCollectionPage(pathname, data) {
+  const title = data.title?.toLowerCase() || "";
+  const h1Text = data.h1Text?.toLowerCase() || "";
+  const textToCheck = `${pathname} ${title} ${h1Text}`;
+  const collectionPathPatterns = [
+    "/health-care/",
+    "/product-category/",
+    "/category/",
+    "/collections/",
+    "/collection/",
+    "/shop/",
+    "/store/"
+  ];
+  const commerceTextPatterns = [
+    "buy ",
+    "buy online",
+    "order ",
+    "order online",
+    "shop ",
+    "products online",
+    "get upto",
+    "get up to"
+  ];
+  const hasCollectionPath = collectionPathPatterns.some((pattern) => pathname.includes(pattern));
+  const hasCommerceText = commerceTextPatterns.some((pattern) => textToCheck.includes(pattern));
+  const hasEcommerceSignal = (data.wordpress?.ecommerceSignals?.length || 0) > 0;
+  const hasCollectionSchema = data.schema?.pageLevelTypes?.includes("CollectionPage") || data.schema?.hasFaqSchema;
+
+  return !data.schema?.hasProductSchema && (hasCollectionPath || hasCollectionSchema) && (hasCommerceText || hasEcommerceSignal);
+}
+
+function isBuilderPage(pathname, data) {
+  const builderPathPatterns = [
+    "element",
+    "shortcode",
+    "widget",
+    "button",
+    "video-icon",
+    "gallery"
+  ];
+  const h1Text = data.h1Text?.toLowerCase() || "";
+  const title = data.title?.toLowerCase() || "";
+  const textToCheck = `${pathname} ${h1Text} ${title}`;
+  const hasBuilderPattern = builderPathPatterns.some((pattern) => textToCheck.includes(pattern));
+
+  return hasBuilderPattern && hasOnlyNonArticlePageSchema(data);
+}
+
+function hasOnlyNonArticlePageSchema(data) {
+  return (
+    !data.schema?.hasArticleSchema &&
+    !data.schema?.hasProductSchema &&
+    !data.schema?.hasCourseSchema &&
+    !data.schema?.hasLocalBusinessSchema
   );
 }
 
@@ -113,19 +177,12 @@ function isThemeDemoPage(pathname, data) {
     "front-page",
     "slider",
     "wishlist",
-    "elements",
-    "shortcode",
-    "video-icon",
-    "widget-title",
-    "buttons-on-this-theme",
-    "gallery",
     "testimonial"
   ];
   const h1Text = data.h1Text?.toLowerCase() || "";
   const title = data.title?.toLowerCase() || "";
   const textToCheck = `${pathname} ${h1Text} ${title}`;
   const hasDemoPattern = demoPathPatterns.some((pattern) => textToCheck.includes(pattern));
-  const hasOnlyGenericSchema = !data.schema?.hasArticleSchema && !data.schema?.hasProductSchema && !data.schema?.hasCourseSchema;
 
-  return hasDemoPattern && hasOnlyGenericSchema;
+  return hasDemoPattern && hasOnlyNonArticlePageSchema(data);
 }

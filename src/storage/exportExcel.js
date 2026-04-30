@@ -37,10 +37,21 @@ const SHEET_COLUMNS = {
     { header: "Internal Links", value: (row) => row.internalLinkCount },
     { header: "External Links", value: (row) => row.externalLinkCount },
     { header: "Schema Types", value: (row) => joinList(row.schema?.types) },
+    { header: "Global Schema Types", value: (row) => joinList(row.schema?.globalTypes) },
+    { header: "Page-Level Schema Types", value: (row) => joinList(row.schema?.pageLevelTypes) },
+    { header: "Expected Schema", value: (row) => row.schemaValidation?.expectedSchema },
+    { header: "Found Expected Schema Types", value: (row) => joinList(row.schemaValidation?.foundSchema) },
+    { header: "Expected Schema Status", value: (row) => row.schemaValidation?.status },
+    { header: "Schema Issues", value: (row) => joinList(row.schemaIssues) },
     { header: "Schema Injected By App", value: (row) => boolText(row.schema?.injectedByApp) },
     { header: "Schema Source Type", value: (row) => row.schema?.sourceType },
     { header: "Schema Source Name", value: (row) => row.schema?.sourceName },
     { header: "Schema Source Evidence", value: (row) => joinList(row.schema?.sourceEvidence) },
+    { header: "Has Article Schema", value: (row) => boolText(row.schema?.hasArticleSchema) },
+    { header: "Has Article Author", value: (row) => boolText(row.schema?.hasArticleAuthor) },
+    { header: "Has Article Published Date", value: (row) => boolText(row.schema?.hasArticlePublishedDate) },
+    { header: "Has Product Price", value: (row) => boolText(row.schema?.hasProductPrice) },
+    { header: "Has Product Rating", value: (row) => boolText(row.schema?.hasProductRating) },
     { header: "WordPress", value: (row) => boolText(row.wordpress?.isWordPress) },
     { header: "Plugins", value: (row) => joinList(row.wordpress?.plugins) },
     { header: "Fetch Error", value: (row) => row.fetchError }
@@ -188,7 +199,9 @@ function buildSiteProfileRows(siteProfile) {
     { field: "LMS plugins", value: joinList(siteProfile.wordpress?.lmsPlugins) },
     { field: "Builders", value: joinList(siteProfile.wordpress?.builders) },
     { field: "Themes", value: joinList(siteProfile.wordpress?.themes) },
-    { field: "Schema types", value: joinList(siteProfile.schemaTypes) }
+    { field: "Schema types", value: joinList(siteProfile.schemaTypes) },
+    { field: "Global schema types", value: joinList(siteProfile.globalSchemaTypes) },
+    { field: "Page-level schema types", value: joinList(siteProfile.pageLevelSchemaTypes) }
   ];
 }
 

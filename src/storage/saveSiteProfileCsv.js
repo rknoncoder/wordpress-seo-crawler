@@ -12,7 +12,9 @@ const ROWS = [
   { label: "LMS Plugins", value: (profile) => profile.wordpress.lmsPlugins.join(", ") },
   { label: "Builders", value: (profile) => profile.wordpress.builders.join(", ") },
   { label: "Themes", value: (profile) => profile.wordpress.themes.join(", ") },
-  { label: "Schema Types", value: (profile) => profile.schemaTypes.join(", ") }
+  { label: "Schema Types", value: (profile) => profile.schemaTypes.join(", ") },
+  { label: "Global Schema Types", value: (profile) => profile.globalSchemaTypes?.join(", ") || "" },
+  { label: "Page-Level Schema Types", value: (profile) => profile.pageLevelSchemaTypes?.join(", ") || "" }
 ];
 
 export default function saveSiteProfileCsv(profile) {

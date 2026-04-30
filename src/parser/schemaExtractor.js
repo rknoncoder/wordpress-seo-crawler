@@ -2,33 +2,57 @@ export default function schemaExtractor($) {
   const jsonLd = extractJsonLd($);
   const microdataTypes = extractMicrodataTypes($);
   const schemaTypes = [...new Set([...jsonLd.types, ...microdataTypes])];
+  const globalTypes = filterSchemaTypes(schemaTypes, GLOBAL_SCHEMA_TYPES);
+  const pageLevelTypes = schemaTypes.filter((schemaType) => !GLOBAL_SCHEMA_TYPES.has(schemaType));
+  const articleDetails = extractArticleDetails($, jsonLd.nodes);
+  const productDetails = extractProductDetails($, jsonLd.nodes);
   const source = detectSchemaSource($, schemaTypes);
 
   return {
     schema: {
       types: schemaTypes,
+      globalTypes,
+      pageLevelTypes,
       jsonLdCount: jsonLd.count,
       jsonLdParseErrors: jsonLd.parseErrors,
+      invalidStructureCount: jsonLd.invalidStructures,
       microdataTypes,
+      schemaTypeCounts: countSchemaTypes([...jsonLd.allTypes, ...microdataTypes]),
       sourceType: source.sourceType,
       sourceName: source.sourceName,
       injectedByApp: source.injectedByApp,
       sourceEvidence: source.evidence,
-      hasArticleSchema: hasSchemaType(schemaTypes, ["Article", "BlogPosting", "NewsArticle"]),
-      hasProductSchema: hasSchemaType(schemaTypes, ["Product"]),
-      hasLocalBusinessSchema: hasSchemaType(schemaTypes, ["LocalBusiness"]),
-      hasOrganizationSchema: hasSchemaType(schemaTypes, ["Organization"]),
-      hasCourseSchema: hasSchemaType(schemaTypes, ["Course"]),
-      hasBreadcrumbSchema: hasSchemaType(schemaTypes, ["BreadcrumbList"]),
-      hasFaqSchema: hasSchemaType(schemaTypes, ["FAQPage"])
+      hasArticleSchema: hasSchemaType(pageLevelTypes, ["Article", "BlogPosting", "NewsArticle"]),
+      hasArticleAuthor: articleDetails.hasAuthor,
+      hasArticlePublishedDate: articleDetails.hasPublishedDate,
+      hasProductSchema: hasSchemaType(pageLevelTypes, ["Product"]),
+      hasProductPrice: productDetails.hasPrice,
+      hasProductRating: productDetails.hasRating,
+      hasLocalBusinessSchema: hasSchemaType(pageLevelTypes, ["LocalBusiness"]),
+      hasOrganizationSchema: hasSchemaType(globalTypes, ["Organization"]),
+      hasCourseSchema: hasSchemaType(pageLevelTypes, ["Course"]),
+      hasBreadcrumbSchema: hasSchemaType(globalTypes, ["BreadcrumbList"]),
+      hasFaqSchema: hasSchemaType(pageLevelTypes, ["FAQPage"])
     }
   };
 }
 
+const GLOBAL_SCHEMA_TYPES = new Set([
+  "BreadcrumbList",
+  "ListItem",
+  "Organization",
+  "Person",
+  "SearchAction",
+  "WebPage",
+  "WebSite"
+]);
+
 function extractJsonLd($) {
   const types = [];
+  const nodes = [];
   let count = 0;
   let parseErrors = 0;
+  let invalidStructures = 0;
 
   $('script[type="application/ld+json"]').each((_, element) => {
     count += 1;
@@ -39,7 +63,13 @@ function extractJsonLd($) {
     }
 
     try {
-      collectSchemaTypes(JSON.parse(rawJson), types);
+      const parsedJson = JSON.parse(rawJson);
+      if (!parsedJson || (typeof parsedJson !== "object" && !Array.isArray(parsedJson))) {
+        invalidStructures += 1;
+        return;
+      }
+
+      collectSchemaNodes(parsedJson, nodes);
     } catch {
       parseErrors += 1;
     }
@@ -48,8 +78,89 @@ function extractJsonLd($) {
   return {
     count,
     parseErrors,
-    types: [...new Set(types)]
+    invalidStructures,
+    nodes,
+    allTypes: nodes.map((node) => node.type).filter(Boolean),
+    types: [...new Set(nodes.map((node) => node.type).filter(Boolean))]
   };
+}
+
+function extractArticleDetails($, jsonLdNodes) {
+  const articleNodes = jsonLdNodes.filter((node) =>
+    ["Article", "BlogPosting", "NewsArticle"].includes(node.type)
+  );
+
+  const hasAuthorInJsonLd = articleNodes.some((node) => hasValue(node.raw?.author));
+  const hasPublishedDateInJsonLd = articleNodes.some((node) => hasValue(node.raw?.datePublished));
+  const hasAuthorMicrodata = $('[itemtype*="Article"] [itemprop="author"], [itemprop="author"]').length > 0;
+  const hasPublishedDateMicrodata = $('[itemtype*="Article"] [itemprop="datePublished"], [itemprop="datePublished"]').length > 0;
+
+  return {
+    hasAuthor: hasAuthorInJsonLd || hasAuthorMicrodata,
+    hasPublishedDate: hasPublishedDateInJsonLd || hasPublishedDateMicrodata
+  };
+}
+
+function extractProductDetails($, jsonLdNodes) {
+  const productNodes = jsonLdNodes.filter((node) => node.type === "Product");
+  const hasPriceInJsonLd = productNodes.some((node) =>
+    hasValue(node.raw?.price) || hasValue(node.raw?.offers?.price) || hasOfferArrayPrice(node.raw?.offers)
+  );
+  const hasRatingInJsonLd = productNodes.some((node) =>
+    hasValue(node.raw?.aggregateRating?.ratingValue) || hasValue(node.raw?.review)
+  );
+  const hasPriceMicrodata = $('[itemtype*="Product"] [itemprop="price"], [itemprop="price"]').length > 0;
+  const hasRatingMicrodata = $('[itemtype*="Product"] [itemprop="ratingValue"], [itemprop="ratingValue"]').length > 0;
+
+  return {
+    hasPrice: hasPriceInJsonLd || hasPriceMicrodata,
+    hasRating: hasRatingInJsonLd || hasRatingMicrodata
+  };
+}
+
+function collectSchemaNodes(value, nodes) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectSchemaNodes(item, nodes));
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const rawTypes = Array.isArray(value["@type"]) ? value["@type"] : [value["@type"]];
+  rawTypes
+    .map(normalizeSchemaType)
+    .filter(Boolean)
+    .forEach((type) => nodes.push({ type, raw: value }));
+
+  if (value["@graph"]) {
+    collectSchemaNodes(value["@graph"], nodes);
+  }
+}
+
+function hasValue(value) {
+  if (Array.isArray(value)) {
+    return value.some(hasValue);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value).length > 0;
+  }
+
+  return Boolean(value);
+}
+
+function hasOfferArrayPrice(offers) {
+  return Array.isArray(offers) && offers.some((offer) => hasValue(offer?.price));
+}
+
+function countSchemaTypes(schemaTypes) {
+  return schemaTypes.reduce((counts, schemaType) => {
+    if (!schemaType) return counts;
+    counts[schemaType] = (counts[schemaType] || 0) + 1;
+    return counts;
+  }, {});
 }
 
 function extractMicrodataTypes($) {
@@ -59,34 +170,20 @@ function extractMicrodataTypes($) {
     .filter(Boolean);
 }
 
-function collectSchemaTypes(value, types) {
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectSchemaTypes(item, types));
-    return;
-  }
-
-  if (!value || typeof value !== "object") {
-    return;
-  }
-
-  const type = value["@type"];
-  if (Array.isArray(type)) {
-    type.forEach((item) => types.push(normalizeSchemaType(item)));
-  } else if (type) {
-    types.push(normalizeSchemaType(type));
-  }
-
-  if (value["@graph"]) {
-    collectSchemaTypes(value["@graph"], types);
-  }
-}
-
 function normalizeSchemaType(value) {
+  if (!value) {
+    return "";
+  }
+
   return String(value).split("/").filter(Boolean).pop() || "";
 }
 
 function hasSchemaType(schemaTypes, targetTypes) {
   return schemaTypes.some((schemaType) => targetTypes.includes(schemaType));
+}
+
+function filterSchemaTypes(schemaTypes, targetTypes) {
+  return schemaTypes.filter((schemaType) => targetTypes.has(schemaType));
 }
 
 function detectSchemaSource($, schemaTypes) {

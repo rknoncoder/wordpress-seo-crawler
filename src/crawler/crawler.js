@@ -49,6 +49,8 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
       depth,
       fetchError: "",
       issues: seoAnalysis.issues,
+      schemaValidation: seoAnalysis.schemaValidation,
+      schemaIssues: seoAnalysis.schemaIssues,
       ...data
     });
 
@@ -100,6 +102,12 @@ function buildFailedPageResult(page, depth) {
     depth,
     fetchError: page.error,
     issues: [],
+    schemaIssues: [],
+    schemaValidation: {
+      expectedSchema: "",
+      foundSchema: [],
+      status: "not_checked"
+    },
     title: "",
     metaDescription: "",
     metaDescriptionLength: 0,
@@ -125,15 +133,23 @@ function buildFailedPageResult(page, depth) {
     nofollowLinkCount: 0,
     schema: {
       types: [],
+      globalTypes: [],
+      pageLevelTypes: [],
       jsonLdCount: 0,
       jsonLdParseErrors: 0,
+      invalidStructureCount: 0,
       microdataTypes: [],
+      schemaTypeCounts: {},
       sourceType: "none",
       sourceName: "",
       injectedByApp: false,
       sourceEvidence: [],
       hasArticleSchema: false,
+      hasArticleAuthor: false,
+      hasArticlePublishedDate: false,
       hasProductSchema: false,
+      hasProductPrice: false,
+      hasProductRating: false,
       hasLocalBusinessSchema: false,
       hasOrganizationSchema: false,
       hasCourseSchema: false,
@@ -153,6 +169,7 @@ function buildFailedPageResult(page, depth) {
       themes: [],
       seoPlugins: [],
       ecommercePlugins: [],
+      ecommerceSignals: [],
       lmsPlugins: [],
       builders: [],
       routeSignals: [],

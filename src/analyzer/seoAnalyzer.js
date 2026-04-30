@@ -1,4 +1,6 @@
 import checkCanonical from "./canonicalChecker.js";
+import detectSchemaIssues from "./schemaQuality.js";
+import validateExpectedSchema from "./schemaExpectation.js";
 
 export default function analyzeSeo(pageData) {
   const issues = [];
@@ -40,9 +42,13 @@ export default function analyzeSeo(pageData) {
 
   const canonicalAnalysis = checkCanonical(pageData);
   issues.push(...canonicalAnalysis.issues);
+  const schemaValidation = validateExpectedSchema(pageData);
+  const schemaIssues = detectSchemaIssues(pageData);
 
   return {
     url: pageData.url || "",
-    issues
+    issues,
+    schemaValidation,
+    schemaIssues
   };
 }
