@@ -7,6 +7,7 @@ import contentExtractor from "./contentExtractor.js";
 import schemaExtractor from "./schemaExtractor.js";
 import wordpressDetector from "./wordpressDetector.js";
 import classifyPage from "../classifier/pageClassifier.js";
+import { detectFacetedUrl } from "../utils/facetedUrl.js";
 
 export default async function extractData(url, html) {
   const $ = cheerio.load(html);
@@ -18,6 +19,7 @@ export default async function extractData(url, html) {
   const content = contentExtractor($);
   const schema = schemaExtractor($);
   const wordpress = await wordpressDetector($, url);
+  const facetedUrl = detectFacetedUrl(url);
 
   const data = {
     url,
@@ -27,6 +29,7 @@ export default async function extractData(url, html) {
     ...images,
     ...linkData,
     ...schema,
+    ...facetedUrl,
     wordpress
   };
 

@@ -5,13 +5,20 @@ const URL_FLAGS = new Set(["--url", "-u", "--site", "--start-url"]);
 const SITEMAP_FLAGS = new Set(["--sitemap", "--sitemap-url"]);
 
 export function getTargetUrl(defaultUrl) {
+  return getTargetUrlConfig(defaultUrl).targetUrl;
+}
+
+export function getTargetUrlConfig(defaultUrl) {
   loadDotEnv();
 
   const cliUrl = getCliUrl(process.argv.slice(2));
   const envUrl = process.env.START_URL || process.env.WEBSITE_URL || process.env.SITE_URL;
   const targetUrl = cliUrl || envUrl || defaultUrl;
 
-  return normalizeUrl(targetUrl);
+  return {
+    targetUrl: normalizeUrl(targetUrl),
+    source: cliUrl || envUrl ? "direct_url" : "sitemap"
+  };
 }
 
 export function getSitemapUrls() {

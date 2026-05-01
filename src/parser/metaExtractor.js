@@ -3,6 +3,8 @@ export default function ($) {
   const metaDescription = getMetaContent($, 'meta[name="description"]');
   const canonicalTags = $('link[rel="canonical"]');
   const canonical = canonicalTags.first().attr("href") || "";
+  const relNext = getLinkHrefByRel($, "next");
+  const relPrev = getLinkHrefByRel($, "prev");
   const robots = getMetaContent($, 'meta[name="robots"]');
 
   return {
@@ -12,6 +14,8 @@ export default function ($) {
     metaDescriptionLength: metaDescription.length,
     canonical,
     canonicalTagCount: canonicalTags.length,
+    relNext,
+    relPrev,
     robots,
     isNoindex: robots.toLowerCase().includes("noindex"),
     openGraph: {
@@ -32,4 +36,16 @@ export default function ($) {
 
 function getMetaContent($, selector) {
   return $(selector).first().attr("content")?.trim() || "";
+}
+
+function getLinkHrefByRel($, relName) {
+  const relToken = relName.toLowerCase();
+
+  return $("link[rel]")
+    .filter((_, element) => {
+      const rel = ($(element).attr("rel") || "").toLowerCase();
+      return rel.split(/\s+/).includes(relToken);
+    })
+    .first()
+    .attr("href") || "";
 }

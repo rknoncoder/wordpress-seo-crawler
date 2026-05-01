@@ -42,9 +42,9 @@ const LMS_PLUGIN_PATTERNS = [
 
 const BUILDER_PATTERNS = [
   { name: "Elementor", patterns: ["elementor"] },
-  { name: "Divi", patterns: ["et-core", "divi", "et_pb_"] },
+  { name: "Divi", patterns: ["et-core", "et_pb_"] },
   { name: "WPBakery", patterns: ["js_composer", "wpbakery"] },
-  { name: "Oxygen", patterns: ["oxygen"] },
+  { name: "Oxygen", patterns: ["oxygen-builder", "ct-builder", "oxygen.css"] },
   { name: "Bricks", patterns: ["bricks"] },
   { name: "Beaver Builder", patterns: ["fl-builder"] },
   { name: "Gutenberg", patterns: ["wp-block-", "block-library"] }
@@ -64,17 +64,19 @@ export default async function ($, url) {
 
   const html = $.html();
   const normalizedHtml = html.toLowerCase();
-  const assetUrls = collectAssetUrls($);
+  const assetUrls = collectAssetUrls($, 'script[src], link[href]');
   const assetText = assetUrls.join(" ").toLowerCase();
   const structuralText = [
     $("body").attr("class") || "",
     $('link[href*="/wp-content/plugins/"]').map((_, element) => $(element).attr("href") || "").get().join(" "),
-    $('script[src*="/wp-content/plugins/"]').map((_, element) => $(element).attr("src") || "").get().join(" ")
+    $('link[href*="/wp-content/themes/"]').map((_, element) => $(element).attr("href") || "").get().join(" "),
+    $('script[src*="/wp-content/plugins/"]').map((_, element) => $(element).attr("src") || "").get().join(" "),
+    $('script[src*="/wp-content/themes/"]').map((_, element) => $(element).attr("src") || "").get().join(" ")
   ]
     .join(" ")
     .toLowerCase();
 
-  if (normalizedHtml.includes("wp-content") || normalizedHtml.includes("wp-includes")) {
+  if (assetText.includes("/wp-content/") || assetText.includes("/wp-includes/")) {
     isWordPress = true;
     signals.push("wp-path");
   }
@@ -96,7 +98,7 @@ export default async function ($, url) {
   const seoPlugins = detectNamedPatterns(normalizedHtml, SEO_PLUGIN_PATTERNS);
   const ecommercePlugins = detectNamedPatterns(`${assetText} ${structuralText}`, ECOMMERCE_PLUGIN_PATTERNS);
   const lmsPlugins = detectNamedPatterns(normalizedHtml, LMS_PLUGIN_PATTERNS);
-  const builders = detectNamedPatterns(normalizedHtml, BUILDER_PATTERNS);
+  const builders = detectNamedPatterns(`${assetText} ${structuralText}`, BUILDER_PATTERNS);
   const ecommerceSignals = detectEcommerceSignals($, normalizedHtml, ecommercePlugins);
   const routeSignals = detectRouteSignals(pathname, ecommerceSignals.hasStrongWooCommerceSignal);
   const localSignals = detectLocalSignals($, normalizedHtml);
@@ -124,7 +126,7 @@ export default async function ($, url) {
     routeSignals,
     localSignals,
     ecommerceSignals: ecommerceSignals.signals,
-    hasWooCommerce: ecommercePlugins.includes("WooCommerce") || ecommerceSignals.hasStrongWooCommerceSignal,
+    hasWooCommerce: ecommercePlugins.includes("WooCommerce") || ecommerceSignals.hasWooCommerceSignal,
     hasLms: lmsPlugins.length > 0 || routeSignals.includes("course-route"),
     hasLocalSignals: localSignals.length > 0
   };
@@ -169,10 +171,10 @@ async function getSiteChecks(origin) {
   return signals;
 }
 
-function collectAssetUrls($) {
+function collectAssetUrls($, selector) {
   const urls = [];
 
-  $('script[src], link[href], img[src], source[src], iframe[src]').each((_, element) => {
+  $(selector).each((_, element) => {
     const src = $(element).attr("src") || $(element).attr("href");
     if (src) {
       urls.push(src);
@@ -237,6 +239,13 @@ function detectRouteSignals(pathname, hasStrongWooCommerceSignal) {
 
 function detectEcommerceSignals($, normalizedHtml, ecommercePlugins) {
   const signals = [];
+  const hasWooCommerceSignal =
+    ecommercePlugins.includes("WooCommerce") ||
+    normalizedHtml.includes("woocommerce-cart") ||
+    normalizedHtml.includes("woocommerce-checkout") ||
+    normalizedHtml.includes("woocommerce-js") ||
+    normalizedHtml.includes("single_add_to_cart_button") ||
+    normalizedHtml.includes("/wp-content/plugins/woocommerce/");
 
   if (ecommercePlugins.includes("WooCommerce")) {
     signals.push("woocommerce-plugin");
@@ -256,7 +265,8 @@ function detectEcommerceSignals($, normalizedHtml, ecommercePlugins) {
 
   return {
     signals: [...new Set(signals)],
-    hasStrongWooCommerceSignal: signals.length > 0
+    hasStrongWooCommerceSignal: hasWooCommerceSignal,
+    hasWooCommerceSignal
   };
 }
 

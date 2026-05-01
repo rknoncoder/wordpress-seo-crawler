@@ -1,6 +1,6 @@
 export default {
   startUrl: "https://www.togrowmarketing.com/",
-  maxPages: 200,
+  maxPages: 700,
   maxDepth: 3,
   timeout: 10000,
   concurrency: 1,

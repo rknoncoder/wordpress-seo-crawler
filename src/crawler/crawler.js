@@ -13,6 +13,7 @@ import saveIssuesJson from "../storage/saveIssuesJson.js";
 import saveSiteProfileCsv from "../storage/saveSiteProfileCsv.js";
 import saveSiteProfileJson from "../storage/saveSiteProfileJson.js";
 import config from "../config/config.js";
+import { detectFacetedUrl } from "../utils/facetedUrl.js";
 
 export default async function startCrawler(initialUrls = [config.startUrl]) {
   const visited = new Set();
@@ -92,6 +93,8 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
 }
 
 function buildFailedPageResult(page, depth) {
+  const facetedUrl = detectFacetedUrl(page.finalUrl || page.requestedUrl);
+
   return {
     requestedUrl: page.requestedUrl,
     finalUrl: page.finalUrl,
@@ -114,6 +117,7 @@ function buildFailedPageResult(page, depth) {
     canonical: "",
     robots: "",
     isNoindex: false,
+    ...facetedUrl,
     titleLength: 0,
     h1Count: 0,
     h1Text: "",

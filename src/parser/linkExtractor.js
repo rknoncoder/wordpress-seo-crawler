@@ -40,6 +40,7 @@ export default function ($, baseUrl) {
 
   const internalLinkList = [...internalLinks.values()];
   const externalLinkList = [...externalLinks.values()];
+  const paginationLinkList = internalLinkList.filter((link) => isPaginationLink(link));
 
   return {
     crawlLinks: internalLinkList.map((link) => link.url),
@@ -50,7 +51,19 @@ export default function ($, baseUrl) {
         link.rel.split(/\s+/).includes("nofollow")
       ).length,
       internalLinkSamples: internalLinkList.slice(0, 10),
-      externalLinkSamples: externalLinkList.slice(0, 10)
+      externalLinkSamples: externalLinkList.slice(0, 10),
+      paginationLinkCount: paginationLinkList.length,
+      paginationLinkSamples: paginationLinkList.slice(0, 10)
     }
   };
+}
+
+function isPaginationLink(link) {
+  const text = (link.anchorText || "").toLowerCase();
+  const url = link.url || "";
+
+  return (
+    /\b(next|previous|prev)\b/.test(text) ||
+    /(?:[?&](?:page|paged|p)=\d+\b|\/page\/\d+\/?$|\/page-\d+\/?$)/i.test(url)
+  );
 }

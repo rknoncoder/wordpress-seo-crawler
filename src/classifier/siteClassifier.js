@@ -1,11 +1,12 @@
 export default function classifySite(pages) {
   const pageTypeCounts = countBy(pages, (page) => page.classification?.pageType || "unknown");
-  const pluginNames = collectUnique(pages, (page) => page.wordpress?.plugins);
-  const seoPlugins = collectUnique(pages, (page) => page.wordpress?.seoPlugins);
-  const ecommercePlugins = collectUnique(pages, (page) => page.wordpress?.ecommercePlugins);
-  const lmsPlugins = collectUnique(pages, (page) => page.wordpress?.lmsPlugins);
-  const builders = collectUnique(pages, (page) => page.wordpress?.builders);
-  const themeSlugs = collectUnique(pages, (page) => page.wordpress?.themes);
+  const wordpressEvidencePages = pages.filter(hasWordPressEvidence);
+  const pluginNames = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.plugins);
+  const seoPlugins = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.seoPlugins);
+  const ecommercePlugins = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.ecommercePlugins);
+  const lmsPlugins = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.lmsPlugins);
+  const builders = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.builders);
+  const themeSlugs = collectUnique(wordpressEvidencePages, (page) => page.wordpress?.themes);
   const schemaTypes = collectUnique(pages, (page) => page.schema?.types);
   const globalSchemaTypes = collectUnique(pages, (page) => page.schema?.globalTypes);
   const pageLevelSchemaTypes = collectUnique(pages, (page) => page.schema?.pageLevelTypes);
@@ -23,7 +24,7 @@ export default function classifySite(pages) {
     modulesToRun,
     pageTypeCounts,
     wordpress: {
-      isWordPress: pages.some((page) => page.wordpress?.isWordPress),
+      isWordPress: wordpressEvidencePages.length > 0,
       plugins: pluginNames,
       seoPlugins,
       ecommercePlugins,
@@ -44,6 +45,20 @@ export default function classifySite(pages) {
   };
 }
 
+function hasWordPressEvidence(page) {
+  const signals = page.wordpress?.signals || [];
+
+  return (
+    signals.includes("meta-generator") ||
+    signals.includes("wp-json") ||
+    signals.includes("wp-login") ||
+    signals.includes("plugin-assets") ||
+    signals.includes("theme-assets") ||
+    (page.wordpress?.plugins?.length || 0) > 0 ||
+    (page.wordpress?.themes?.length || 0) > 0
+  );
+}
+
 function detectSiteCategories(pages, pageTypeCounts, context) {
   const categories = [];
 
@@ -55,7 +70,7 @@ function detectSiteCategories(pages, pageTypeCounts, context) {
     categories.push("course");
   }
 
-  if (pageTypeCounts.local_page > 0 || pageTypeCounts.service_page > 0 || pages.some((page) => page.wordpress?.hasLocalSignals)) {
+  if (pageTypeCounts.local_page > 0 || pageTypeCounts.contact_page > 0 || (pageTypeCounts.service_page || 0) >= 3) {
     categories.push("local_service");
   }
 

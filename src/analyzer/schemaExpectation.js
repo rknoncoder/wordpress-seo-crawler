@@ -5,6 +5,10 @@ const EXPECTED_SCHEMA_BY_PAGE_TYPE = {
   contact_page: "LocalBusiness"
 };
 
+const RECOMMENDED_SCHEMA_BY_PAGE_TYPE = {
+  product_collection_page: "CollectionPage or ItemList + BreadcrumbList; FAQPage optional"
+};
+
 export default function validateExpectedSchema(pageData) {
   if (pageData.fetchError || pageData.classification?.pageType === "fetch_error") {
     return {
@@ -16,11 +20,12 @@ export default function validateExpectedSchema(pageData) {
 
   const pageType = pageData.classification?.pageType || "";
   const expectedSchema = EXPECTED_SCHEMA_BY_PAGE_TYPE[pageType] || "";
+  const recommendedSchema = RECOMMENDED_SCHEMA_BY_PAGE_TYPE[pageType] || "";
   const foundSchema = pageData.schema?.pageLevelTypes || pageData.schema?.types || [];
 
   if (!expectedSchema) {
     return {
-      expectedSchema: "",
+      expectedSchema: recommendedSchema,
       foundSchema,
       status: "not_applicable"
     };
