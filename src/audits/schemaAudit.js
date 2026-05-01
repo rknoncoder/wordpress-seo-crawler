@@ -1,4 +1,5 @@
 import { createIssue } from "./issueFactory.js";
+import { getMissingProductSchemaFields } from "../analyzer/schemaQuality.js";
 
 export default function schemaAudit(pages) {
   const issues = [];
@@ -48,6 +49,19 @@ export default function schemaAudit(pages) {
         message: "Product-like page is missing Product schema.",
         recommendation: "Add Product schema with name, image, price, availability, and SKU where applicable."
       }));
+    }
+
+    if (page.classification?.pageType === "product" && page.schema?.hasProductSchema) {
+      getMissingProductSchemaFields(page.schema).forEach((field) => {
+        issues.push(createIssue({
+          severity: field === "price" || field === "availability" ? "high" : "medium",
+          category: "schema",
+          type: `missing_product_${field}`,
+          url: page.url,
+          message: `Product schema is missing ${field}.`,
+          recommendation: "Add complete Product schema fields: price, availability, brand, and rating/review data where available."
+        }));
+      });
     }
   });
 

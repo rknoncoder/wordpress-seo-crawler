@@ -26,7 +26,13 @@ export default function detectSchemaIssues(pageData) {
     issues.add("duplicate_schema");
   }
 
-  if (hasEmptySchemaFields(schema)) {
+  const missingProductFields = getMissingProductSchemaFields(schema);
+
+  missingProductFields.forEach((field) => {
+    issues.add(`missing_product_${field}`);
+  });
+
+  if (hasEmptySchemaFields(schema) || missingProductFields.length > 0) {
     issues.add("empty_fields");
   }
 
@@ -44,9 +50,24 @@ function hasEmptySchemaFields(schema) {
     return true;
   }
 
-  if (schema.hasProductSchema && (!schema.hasProductPrice || !schema.hasProductRating)) {
+  if (schema.hasProductSchema && getMissingProductSchemaFields(schema).length > 0) {
     return true;
   }
 
   return false;
+}
+
+export function getMissingProductSchemaFields(schema = {}) {
+  if (!schema.hasProductSchema) {
+    return [];
+  }
+
+  return [
+    ["price", schema.hasProductPrice],
+    ["availability", schema.hasProductAvailability],
+    ["brand", schema.hasProductBrand],
+    ["rating", schema.hasProductRating]
+  ]
+    .filter(([, hasField]) => !hasField)
+    .map(([field]) => field);
 }

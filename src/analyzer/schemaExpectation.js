@@ -5,10 +5,6 @@ const EXPECTED_SCHEMA_BY_PAGE_TYPE = {
   contact_page: "LocalBusiness"
 };
 
-const RECOMMENDED_SCHEMA_BY_PAGE_TYPE = {
-  product_collection_page: "CollectionPage or ItemList + BreadcrumbList; FAQPage optional"
-};
-
 export default function validateExpectedSchema(pageData) {
   if (pageData.fetchError || pageData.classification?.pageType === "fetch_error") {
     return {
@@ -19,13 +15,17 @@ export default function validateExpectedSchema(pageData) {
   }
 
   const pageType = pageData.classification?.pageType || "";
+
+  if (pageType === "product_collection_page") {
+    return validateProductCollectionSchema(pageData);
+  }
+
   const expectedSchema = EXPECTED_SCHEMA_BY_PAGE_TYPE[pageType] || "";
-  const recommendedSchema = RECOMMENDED_SCHEMA_BY_PAGE_TYPE[pageType] || "";
   const foundSchema = pageData.schema?.pageLevelTypes || pageData.schema?.types || [];
 
   if (!expectedSchema) {
     return {
-      expectedSchema: recommendedSchema,
+      expectedSchema: "",
       foundSchema,
       status: "not_applicable"
     };
@@ -42,4 +42,31 @@ export default function validateExpectedSchema(pageData) {
 
 function getMissingStatus(foundSchema) {
   return foundSchema.length > 0 ? "partial" : "missing";
+}
+
+function validateProductCollectionSchema(pageData) {
+  const allSchemaTypes = pageData.schema?.types || [];
+  const foundSchema = allSchemaTypes.filter((schemaType) =>
+    ["CollectionPage", "ItemList", "BreadcrumbList"].includes(schemaType)
+  );
+  const hasCollectionSchema = allSchemaTypes.includes("CollectionPage") || allSchemaTypes.includes("ItemList");
+  const hasBreadcrumbSchema = allSchemaTypes.includes("BreadcrumbList");
+
+  return {
+    expectedSchema: "CollectionPage or ItemList + BreadcrumbList; FAQPage optional",
+    foundSchema,
+    status: getProductCollectionStatus(hasCollectionSchema, hasBreadcrumbSchema)
+  };
+}
+
+function getProductCollectionStatus(hasCollectionSchema, hasBreadcrumbSchema) {
+  if (hasCollectionSchema && hasBreadcrumbSchema) {
+    return "valid";
+  }
+
+  if (hasCollectionSchema || hasBreadcrumbSchema) {
+    return "partial";
+  }
+
+  return "missing";
 }

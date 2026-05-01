@@ -1,7 +1,7 @@
 export default {
   startUrl: "https://www.togrowmarketing.com/",
-  maxPages: 700,
-  maxDepth: 3,
+  maxPages: 5000,
+  maxDepth: 10,
   timeout: 10000,
   concurrency: 1,
   crawlDelayMs: 250,
@@ -19,18 +19,16 @@ export default {
       "/comments/feed",
       "/search",
       "/?s=",
+      "whatsapp",
+      "wa.me",
+      "api.whatsapp.com",
+      "share=whatsapp",
+      "/login",
+      "/register",
       "/cart",
       "/checkout",
       "/my-account",
-      "/account",
-      "/login",
-      "/register",
-      "/author/",
-      "/category/",
-      "/tag/",
-      "/page/",
-      "/privacy-policy",
-      "/terms"
+      "/account"
     ],
     excludedExtensions: [
       ".pdf",
@@ -47,21 +45,8 @@ export default {
     ]
   },
   sitemapSelection: {
-    includePatterns: [
-      "page-sitemap",
-      "post-sitemap",
-      "service",
-      "product",
-      "course",
-      "lesson",
-      "location",
-      "case",
-      "portfolio"
-    ],
-    excludePatterns: [
-      "category",
-      "tag",
-      "author"
-    ]
+    crawlAll: true,
+    includePatterns: [],
+    excludePatterns: []
   }
 };

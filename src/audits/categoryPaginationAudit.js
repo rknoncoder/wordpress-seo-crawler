@@ -80,7 +80,7 @@ function addRelPaginationIssues(issues, page) {
     }));
   }
 
-  if (!page.relNext && page.paginationLinkCount > 0) {
+  if (!page.relNext && hasForwardPaginationLink(page)) {
     issues.push(createIssue({
       severity: "low",
       category: "category_pagination",
@@ -134,6 +134,26 @@ function addDuplicateCategoryIssues(issues, pages, getValue, type, message) {
 
 function isPaginatedUrl(url) {
   return /(?:[?&](?:page|paged|p)=\d+\b|\/page\/\d+\/?$|\/page-\d+\/?$)/i.test(url || "");
+}
+
+function hasForwardPaginationLink(page) {
+  const currentPageNumber = getPageNumber(page.url);
+
+  return (page.paginationLinkSamples || []).some((link) => {
+    const linkPageNumber = getPageNumber(link.url);
+
+    if (currentPageNumber && linkPageNumber) {
+      return linkPageNumber > currentPageNumber;
+    }
+
+    return /\b(next|older)\b/i.test(link.anchorText || "");
+  });
+}
+
+function getPageNumber(url) {
+  const match = String(url || "").match(/(?:[?&](?:page|paged|p)=(\d+)\b|\/page\/(\d+)\/?$|\/page-(\d+)\/?$)/i);
+  const value = match?.[1] || match?.[2] || match?.[3] || "";
+  return value ? Number(value) : 0;
 }
 
 function isSameUrl(firstUrl, secondUrl) {

@@ -27,6 +27,8 @@ export default function schemaExtractor($) {
       hasArticlePublishedDate: articleDetails.hasPublishedDate,
       hasProductSchema: hasSchemaType(pageLevelTypes, ["Product"]),
       hasProductPrice: productDetails.hasPrice,
+      hasProductAvailability: productDetails.hasAvailability,
+      hasProductBrand: productDetails.hasBrand,
       hasProductRating: productDetails.hasRating,
       hasLocalBusinessSchema: hasSchemaType(pageLevelTypes, ["LocalBusiness"]),
       hasOrganizationSchema: hasSchemaType(globalTypes, ["Organization"]),
@@ -106,14 +108,26 @@ function extractProductDetails($, jsonLdNodes) {
   const hasPriceInJsonLd = productNodes.some((node) =>
     hasValue(node.raw?.price) || hasValue(node.raw?.offers?.price) || hasOfferArrayPrice(node.raw?.offers)
   );
+  const hasAvailabilityInJsonLd = productNodes.some((node) =>
+    hasValue(node.raw?.availability) ||
+    hasValue(node.raw?.offers?.availability) ||
+    hasOfferArrayField(node.raw?.offers, "availability")
+  );
+  const hasBrandInJsonLd = productNodes.some((node) =>
+    hasValue(node.raw?.brand) || hasValue(node.raw?.manufacturer)
+  );
   const hasRatingInJsonLd = productNodes.some((node) =>
     hasValue(node.raw?.aggregateRating?.ratingValue) || hasValue(node.raw?.review)
   );
   const hasPriceMicrodata = $('[itemtype*="Product"] [itemprop="price"], [itemprop="price"]').length > 0;
+  const hasAvailabilityMicrodata = $('[itemtype*="Product"] [itemprop="availability"], [itemprop="availability"]').length > 0;
+  const hasBrandMicrodata = $('[itemtype*="Product"] [itemprop="brand"], [itemprop="brand"], [itemprop="manufacturer"]').length > 0;
   const hasRatingMicrodata = $('[itemtype*="Product"] [itemprop="ratingValue"], [itemprop="ratingValue"]').length > 0;
 
   return {
     hasPrice: hasPriceInJsonLd || hasPriceMicrodata,
+    hasAvailability: hasAvailabilityInJsonLd || hasAvailabilityMicrodata,
+    hasBrand: hasBrandInJsonLd || hasBrandMicrodata,
     hasRating: hasRatingInJsonLd || hasRatingMicrodata
   };
 }
@@ -153,6 +167,10 @@ function hasValue(value) {
 
 function hasOfferArrayPrice(offers) {
   return Array.isArray(offers) && offers.some((offer) => hasValue(offer?.price));
+}
+
+function hasOfferArrayField(offers, fieldName) {
+  return Array.isArray(offers) && offers.some((offer) => hasValue(offer?.[fieldName]));
 }
 
 function countSchemaTypes(schemaTypes) {

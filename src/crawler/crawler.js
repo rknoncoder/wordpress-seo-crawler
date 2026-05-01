@@ -17,6 +17,7 @@ import { detectFacetedUrl } from "../utils/facetedUrl.js";
 
 export default async function startCrawler(initialUrls = [config.startUrl]) {
   const visited = new Set();
+  const completedFinalUrls = new Set();
   const queue = [...new Set(initialUrls)].map((url) => ({ url, depth: 0 }));
   const queued = new Set(queue.map((item) => item.url));
   const results = [];
@@ -31,6 +32,15 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
     console.log(`Crawling: ${url}`);
 
     const page = await fetchPage(url);
+    const finalUrl = page.finalUrl || page.requestedUrl;
+
+    if (completedFinalUrls.has(finalUrl)) {
+      console.log(`Skipped duplicate final URL: ${finalUrl}`);
+      await waitForCrawlDelay();
+      continue;
+    }
+
+    completedFinalUrls.add(finalUrl);
 
     if (!page.html) {
       results.push(buildFailedPageResult(page, depth));
@@ -60,6 +70,7 @@ export default async function startCrawler(initialUrls = [config.startUrl]) {
         if (
           !visited.has(link) &&
           !queued.has(link) &&
+          !completedFinalUrls.has(link) &&
           visited.size + queue.length < config.maxPages
         ) {
           queue.push({ url: link, depth: depth + 1 });
@@ -153,6 +164,8 @@ function buildFailedPageResult(page, depth) {
       hasArticlePublishedDate: false,
       hasProductSchema: false,
       hasProductPrice: false,
+      hasProductAvailability: false,
+      hasProductBrand: false,
       hasProductRating: false,
       hasLocalBusinessSchema: false,
       hasOrganizationSchema: false,
