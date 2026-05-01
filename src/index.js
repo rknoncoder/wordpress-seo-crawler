@@ -1,5 +1,5 @@
 import config from "./config/config.js";
-import { getSitemapUrls, getTargetUrlConfig } from "./config/runtimeConfig.js";
+import { getCrawlMode, getSitemapUrls, getTargetUrlConfig } from "./config/runtimeConfig.js";
 import detectDuplicates from "./analyzer/duplicateDetector.js";
 import generateSummary from "./analyzer/summary.js";
 import startCrawler from "./crawler/crawler.js";
@@ -13,13 +13,17 @@ import parseSitemap, {
 } from "./parser/sitemapParser.js";
 
 async function main() {
+  const crawlMode = getCrawlMode(config.crawlMode);
+  applyCrawlMode(crawlMode);
+
   const { targetUrl, source } = getTargetUrlConfig(config.startUrl);
   const manualSitemapUrls = getSitemapUrls();
 
   console.log(`Target website: ${targetUrl}`);
   console.log(`Crawl source: ${source}`);
+  console.log(`Crawl mode: ${crawlMode}`);
 
-  if (source === "direct_url") {
+  if (source === "direct_url" || crawlMode === "single") {
     const sitemapInventory = buildSitemapInventory([], [], {
       sitemapUrls: [],
       source,
@@ -124,6 +128,10 @@ function appendUniqueSitemaps(target, sitemaps) {
 }
 
 function selectSitemapsForCrawl(sitemaps, totalUrlsFound) {
+  if (config.sitemapSelection?.crawlAll) {
+    return sitemaps;
+  }
+
   if (totalUrlsFound <= 500) {
     const configuredSitemaps = filterSitemapsByConfig(sitemaps);
     return configuredSitemaps.length > 0 ? configuredSitemaps : sitemaps;
@@ -135,6 +143,28 @@ function selectSitemapsForCrawl(sitemaps, totalUrlsFound) {
   });
 
   return recommendedSitemaps.length > 0 ? recommendedSitemaps : sitemaps;
+}
+
+function applyCrawlMode(crawlMode) {
+  const modeConfig = config.crawlModes?.[crawlMode];
+
+  if (!modeConfig) {
+    return;
+  }
+
+  config.maxPages = modeConfig.maxPages ?? config.maxPages;
+  config.maxDepth = modeConfig.maxDepth ?? config.maxDepth;
+
+  if (modeConfig.excludedPathPatterns) {
+    config.crawl.excludedPathPatterns = modeConfig.excludedPathPatterns;
+  }
+
+  if (modeConfig.sitemapSelection) {
+    config.sitemapSelection = {
+      ...config.sitemapSelection,
+      ...modeConfig.sitemapSelection
+    };
+  }
 }
 
 function filterSitemapsByConfig(sitemaps) {

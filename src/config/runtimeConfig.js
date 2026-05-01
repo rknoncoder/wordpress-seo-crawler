@@ -3,6 +3,7 @@ import path from "path";
 
 const URL_FLAGS = new Set(["--url", "-u", "--site", "--start-url"]);
 const SITEMAP_FLAGS = new Set(["--sitemap", "--sitemap-url"]);
+const MODE_FLAGS = new Set(["--mode", "--crawl-mode"]);
 
 export function getTargetUrl(defaultUrl) {
   return getTargetUrlConfig(defaultUrl).targetUrl;
@@ -11,7 +12,7 @@ export function getTargetUrl(defaultUrl) {
 export function getTargetUrlConfig(defaultUrl) {
   loadDotEnv();
 
-  const cliUrl = getCliUrl(process.argv.slice(2));
+  const cliUrl = getCliUrl(getRuntimeArgs());
   const envUrl = process.env.START_URL || process.env.WEBSITE_URL || process.env.SITE_URL;
   const targetUrl = cliUrl || envUrl || defaultUrl;
 
@@ -24,10 +25,19 @@ export function getTargetUrlConfig(defaultUrl) {
 export function getSitemapUrls() {
   loadDotEnv();
 
-  const cliSitemaps = getCliValues(process.argv.slice(2), SITEMAP_FLAGS, "--sitemap=");
+  const cliSitemaps = getCliValues(getRuntimeArgs(), SITEMAP_FLAGS, "--sitemap=");
   const envSitemaps = splitList(process.env.SITEMAP_URLS || process.env.SITEMAP_URL || "");
 
   return [...new Set([...cliSitemaps, ...envSitemaps].map(normalizeUrl))];
+}
+
+export function getCrawlMode(defaultMode = "seo") {
+  loadDotEnv();
+
+  const cliMode = getCliMode(getRuntimeArgs());
+  const envMode = process.env.CRAWL_MODE || "";
+
+  return normalizeMode(cliMode || envMode || defaultMode);
 }
 
 function getCliUrl(args) {
@@ -43,6 +53,11 @@ function getCliUrl(args) {
       continue;
     }
 
+    if (MODE_FLAGS.has(arg)) {
+      index += 1;
+      continue;
+    }
+
     if (arg.startsWith("--url=")) {
       return arg.slice("--url=".length);
     }
@@ -51,8 +66,32 @@ function getCliUrl(args) {
       continue;
     }
 
+    if (arg.startsWith("--mode=") || arg.startsWith("--crawl-mode=")) {
+      continue;
+    }
+
     if (!arg.startsWith("-")) {
       return arg;
+    }
+  }
+
+  return "";
+}
+
+function getCliMode(args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (MODE_FLAGS.has(arg)) {
+      return args[index + 1] || "";
+    }
+
+    if (arg.startsWith("--mode=")) {
+      return arg.slice("--mode=".length);
+    }
+
+    if (arg.startsWith("--crawl-mode=")) {
+      return arg.slice("--crawl-mode=".length);
     }
   }
 
@@ -84,6 +123,12 @@ function splitList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function getRuntimeArgs() {
+  return process.argv
+    .slice(1)
+    .filter((arg) => !/\.(cjs|js|mjs)$/i.test(arg));
 }
 
 function loadDotEnv() {
@@ -132,4 +177,14 @@ function normalizeUrl(value) {
   } catch {
     throw new Error(`Invalid website URL: ${rawUrl}`);
   }
+}
+
+function normalizeMode(value) {
+  const mode = String(value || "").trim().toLowerCase();
+
+  if (["single", "seo", "full"].includes(mode)) {
+    return mode;
+  }
+
+  throw new Error(`Invalid crawl mode: ${value}. Use single, seo, or full.`);
 }
