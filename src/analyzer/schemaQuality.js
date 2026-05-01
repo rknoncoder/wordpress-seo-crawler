@@ -1,9 +1,14 @@
 const DUPLICATE_IGNORED_TYPES = new Set([
+  "AggregateRating",
   "BreadcrumbList",
   "ImageObject",
   "ListItem",
   "Organization",
+  "Offer",
   "Person",
+  "Quotation",
+  "Rating",
+  "Review",
   "SearchAction",
   "WebPage",
   "WebSite"

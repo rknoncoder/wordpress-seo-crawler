@@ -38,6 +38,7 @@ const COLUMNS = [
   { header: "Pagination Link Count", value: (row) => row.paginationLinkCount },
   { header: "Pagination Link Samples", value: (row) => row.paginationLinkSamples?.map((link) => link.url).join(", ") },
   { header: "Schema Types", value: (row) => row.schema?.types?.join(", ") },
+  { header: "Schema Type Counts", value: (row) => formatSchemaTypeCounts(row.schema?.schemaTypeCounts) },
   { header: "Global Schema Types", value: (row) => row.schema?.globalTypes?.join(", ") },
   { header: "Page-Level Schema Types", value: (row) => row.schema?.pageLevelTypes?.join(", ") },
   { header: "Expected Schema", value: (row) => row.schemaValidation?.expectedSchema },
@@ -125,4 +126,11 @@ function escapeCsvValue(value) {
   }
 
   return text;
+}
+
+function formatSchemaTypeCounts(schemaTypeCounts = {}) {
+  return Object.entries(schemaTypeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([schemaType, count]) => `${schemaType}(${count})`)
+    .join(", ");
 }

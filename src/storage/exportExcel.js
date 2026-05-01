@@ -43,6 +43,7 @@ const SHEET_COLUMNS = {
     { header: "Pagination Link Count", value: (row) => row.paginationLinkCount },
     { header: "Pagination Link Samples", value: (row) => joinList(row.paginationLinkSamples?.map((link) => link.url)) },
     { header: "Schema Types", value: (row) => joinList(row.schema?.types) },
+    { header: "Schema Type Counts", value: (row) => formatSchemaTypeCounts(row.schema?.schemaTypeCounts) },
     { header: "Global Schema Types", value: (row) => joinList(row.schema?.globalTypes) },
     { header: "Page-Level Schema Types", value: (row) => joinList(row.schema?.pageLevelTypes) },
     { header: "Expected Schema", value: (row) => row.schemaValidation?.expectedSchema },
@@ -250,4 +251,11 @@ function formatObject(value) {
   return Object.entries(value)
     .map(([key, item]) => `${key}: ${Array.isArray(item) ? joinList(item) : item}`)
     .join("; ");
+}
+
+function formatSchemaTypeCounts(schemaTypeCounts = {}) {
+  return Object.entries(schemaTypeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([schemaType, count]) => `${schemaType}(${count})`)
+    .join(", ");
 }
